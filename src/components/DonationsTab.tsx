@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/lib/supabase';
+import { openSecureFile } from '@/lib/storage';
 
 import {
   Search,
@@ -2036,14 +2037,8 @@ export default function DonationsTab({
                           {hasDonationFile ? (
                             firstDocument?.file_url ? (
                               <a
-                                href={
-                                  firstDocument.file_url
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) =>
-                                  e.stopPropagation()
-                                }
+                                href="#"
+                                onClick={(e) => openSecureFile(e, firstDocument.file_url)}
                                 className="
                                   inline-flex
                                   items-center
@@ -2068,14 +2063,8 @@ export default function DonationsTab({
                               </a>
                             ) : donation.file_url ? (
                               <a
-                                href={
-                                  donation.file_url
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) =>
-                                  e.stopPropagation()
-                                }
+                                href="#"
+                                onClick={(e) => openSecureFile(e, donation.file_url)}
                                 className="
                                   inline-flex
                                   items-center

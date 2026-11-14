@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toStorageRef } from '@/lib/storage';
 import { Donor, Donation } from '@/types/donor';
 import { logActivity } from '@/lib/logger';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -313,18 +314,11 @@ export default function DonationFormModal({
 
           if (uploadError) throw new Error(`שגיאה בהעלאת הקובץ "${item.name}": ${uploadError.message}`);
 
-          const { data: publicUrlData } = supabase.storage
-              .from('attachments')
-              .getPublicUrl(filePath);
-
-          const publicUrl = publicUrlData?.publicUrl;
-          if (!publicUrl) throw new Error(`לא ניתן לקבל כתובת לקובץ "${item.name}"`);
-
           const { error: documentError } = await supabase.from('donor_documents').insert([{
                 donor_id: donorId,
                 donation_id: donationId,
                 file_name: item.name,
-                file_url: publicUrl,
+                file_url: toStorageRef('attachments', filePath),
                 file_type: item.file.type || null,
           }]);
 

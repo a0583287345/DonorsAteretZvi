@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import React from 'react';
 import { Donor } from '@/types/donor';
 import { supabase } from '@/lib/supabase';
+import { openSecureFile } from '@/lib/storage';
 import { Donation, Attachment } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -667,7 +668,7 @@ export default function DonorCard({
                       {/* כפתורי פעולה לשורת תזכורת */}
                       <div className="flex items-center gap-2 shrink-0">
                         {reminder.file_url && (
-                          <a href={reminder.file_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline shrink-0 bg-blue-50/50 px-2 py-1.5 rounded-lg border border-blue-100">
+                          <a href="#" onClick={(e) => openSecureFile(e, reminder.file_url)} className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline shrink-0 bg-blue-50/50 px-2 py-1.5 rounded-lg border border-blue-100">
                             <Paperclip className="w-3 h-3" /> מסמך
                           </a>
                         )}
@@ -777,7 +778,7 @@ export default function DonorCard({
                             )}
                           </div>
                           {donation.file_url && (
-                            <a href={donation.file_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline shrink-0">
+                            <a href="#" onClick={(e) => openSecureFile(e, donation.file_url)} className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline shrink-0">
                               <Paperclip className="w-3 h-3" /> מסמך
                             </a>
                           )}
@@ -799,7 +800,7 @@ export default function DonorCard({
             </div>
             <div className="p-2 grid grid-cols-2 gap-2">
               {donor.files.map((file) => (
-                <a key={file.id} href={file.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="bg-slate-50 hover:bg-blue-50 p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border border-slate-100 text-slate-700 hover:text-blue-700 transition">
+                <a key={file.id} href="#" onClick={(e) => openSecureFile(e, file.url || file.file_url)} className="bg-slate-50 hover:bg-blue-50 p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border border-slate-100 text-slate-700 hover:text-blue-700 transition">
                   <span className="truncate font-medium">{file.name}</span>
                   <Download className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                 </a>

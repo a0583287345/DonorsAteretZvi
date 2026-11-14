@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+import { openSecureFile } from '@/lib/storage';
 
 interface Donation {
   id: string;
@@ -535,10 +536,8 @@ export default function DonationCardModal({
 
                       {document.file_url ? (
                         <a
-                          href={document.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(event) => event.stopPropagation()}
+                          href="#"
+                          onClick={(event) => openSecureFile(event, document.file_url)}
                           className="
                             inline-flex
                             items-center
@@ -604,10 +603,8 @@ export default function DonationCardModal({
                   </div>
 
                   <a
-                    href={donation.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(event) => event.stopPropagation()}
+                    href="#"
+                    onClick={(event) => openSecureFile(event, donation.file_url)}
                     className="
                       inline-flex
                       items-center

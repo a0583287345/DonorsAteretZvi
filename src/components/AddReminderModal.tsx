@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toStorageRef, openSecureFile } from '@/lib/storage';
 import { useAuth } from '@/components/AuthContext';
 import { 
   X, Save, Loader2, Calendar, FileText, User, Type, 
@@ -136,14 +137,10 @@ export default function AddReminderModal({
             
           if (uploadError) throw uploadError;
           
-          const { data: { publicUrl } } = supabase.storage
-            .from('reminder_docs')
-            .getPublicUrl(filePath);
-            
           finalAttachments.push({
             name: file.name,
             path: filePath,
-            url: publicUrl,
+            url: toStorageRef('reminder_docs', filePath),
             uploaded_at: new Date().toISOString()
           });
 
@@ -340,7 +337,7 @@ export default function AddReminderModal({
                   <span className="text-xs text-slate-500 font-bold">קבצים שמורים:</span>
                   {existingAttachments.map((file, idx) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg">
-                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate max-w-[80%]">
+                      <a href="#" onClick={(e) => openSecureFile(e, file.url)} className="text-sm text-blue-600 hover:underline truncate max-w-[80%]">
                         {file.name}
                       </a>
                       <button type="button" onClick={() => removeExistingAttachment(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded transition">
