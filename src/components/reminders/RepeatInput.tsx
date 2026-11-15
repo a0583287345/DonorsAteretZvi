@@ -1,6 +1,7 @@
 'use client';
 
 import type { RepeatEndType, RepeatUnit } from '@/lib/reminders/recurrence';
+import DateInput from '@/components/DateInput';
 
 export type RepeatValue = {
   unit: RepeatUnit;
@@ -101,12 +102,11 @@ export default function RepeatInput({ value, onChange, hebrew, disabled }: Props
               className="accent-purple-600"
             />
             בתאריך
-            <input
-              type="date"
+            <DateInput
               value={value.until}
-              onChange={(e) => set({ endType: 'until', until: e.target.value })}
+              onChange={(iso) => set({ endType: 'until', until: iso })}
               disabled={disabled || value.endType !== 'until'}
-              className={inputClass}
+              className="max-w-[11rem]"
             />
           </label>
           <label className="flex items-center gap-1.5 cursor-pointer">

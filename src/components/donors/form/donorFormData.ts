@@ -1,5 +1,17 @@
 import type { Donor } from '@/types/donor';
 
+/** יארצייט אחד בטופס. id קיים = שמור במסד (donor_yahrzeits) */
+export interface YahrzeitEntry {
+  key: string;
+  id?: string;
+  day: number;
+  month: number;
+  name: string;
+}
+
+let keyCounter = 0;
+export const newYahrzeitKey = () => `new-${Date.now()}-${keyCounter++}`;
+
 export interface DonorFormData {
   first_name_he: string;
   last_name_he: string;
@@ -18,10 +30,8 @@ export interface DonorFormData {
   connected_contact: string;
   birthday: string;
   birthday_after_sunset: boolean;
-  /** יארצייט – תאריך עברי בלבד (0 = לא הוגדר) */
-  yahrzeit_hebrew_day: number;
-  yahrzeit_hebrew_month: number;
-  yahrzeit_of: string;
+  /** ימי יארצייט – תאריך עברי בלבד (נטענים בנפרד מ-donor_yahrzeits) */
+  yahrzeits: YahrzeitEntry[];
   notes: string;
 }
 
@@ -50,9 +60,7 @@ export const emptyDonorFormData: DonorFormData = {
   connected_contact: '',
   birthday: '',
   birthday_after_sunset: false,
-  yahrzeit_hebrew_day: 0,
-  yahrzeit_hebrew_month: 0,
-  yahrzeit_of: '',
+  yahrzeits: [],
   notes: '',
 };
 
@@ -77,9 +85,7 @@ export function donorToFormData(donor: Donor | null | undefined): DonorFormData 
     connected_contact: donor.connected_contact || '',
     birthday: donor.birthday ? String(donor.birthday).slice(0, 10) : '',
     birthday_after_sunset: Boolean(donor.birthday_after_sunset),
-    yahrzeit_hebrew_day: donor.yahrzeit_hebrew_day || 0,
-    yahrzeit_hebrew_month: donor.yahrzeit_hebrew_month || 0,
-    yahrzeit_of: donor.yahrzeit_of || '',
+    yahrzeits: [],
     notes: donor.notes || '',
   };
 }
@@ -87,7 +93,6 @@ export function donorToFormData(donor: Donor | null | undefined): DonorFormData 
 /** המרת הטופס לשורה בטבלת donors (שדות ריקים → null) */
 export function formDataToPayload(formData: DonorFormData) {
   const text = (value: string) => value.trim() || null;
-  const hasYahrzeit = formData.yahrzeit_hebrew_day > 0 && formData.yahrzeit_hebrew_month > 0;
   return {
     first_name_he: text(formData.first_name_he),
     last_name_he: text(formData.last_name_he),
@@ -109,10 +114,11 @@ export function formDataToPayload(formData: DonorFormData) {
     connected_contact: text(formData.connected_contact),
     birthday: formData.birthday || null,
     birthday_after_sunset: Boolean(formData.birthday && formData.birthday_after_sunset),
-    // יארצייט נשמר רק אם נבחרו גם יום וגם חודש
-    yahrzeit_hebrew_day: hasYahrzeit ? formData.yahrzeit_hebrew_day : null,
-    yahrzeit_hebrew_month: hasYahrzeit ? formData.yahrzeit_hebrew_month : null,
-    yahrzeit_of: hasYahrzeit ? text(formData.yahrzeit_of) : null,
     notes: text(formData.notes),
   };
+}
+
+/** יארצייטים תקינים בלבד (נבחרו גם יום וגם חודש) */
+export function validYahrzeits(list: YahrzeitEntry[]): YahrzeitEntry[] {
+  return list.filter((y) => y.day > 0 && y.month > 0);
 }

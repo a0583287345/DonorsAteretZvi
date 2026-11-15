@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import DateInput from './DateInput';
 import { supabase } from '@/lib/supabase';
 import { toStorageRef } from '@/lib/storage';
 import { Donor, Donation } from '@/types/donor';
@@ -470,13 +471,11 @@ export default function DonationFormModal({
               <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" /> תאריך תרומה
               </label>
-              <input
-                type="date"
+              <DateInput
                 required
                 disabled={!isActionAllowed || isBusy}
                 value={formData.donation_date || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, donation_date: e.target.value }))}
-                className="w-full p-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white disabled:bg-slate-100"
+                onChange={(iso) => setFormData((prev) => ({ ...prev, donation_date: iso }))}
               />
             </div>
           </div>

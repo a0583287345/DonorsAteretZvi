@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/components/AuthContext';
-import { syncDonorAutoReminders } from '@/lib/reminders/donorAuto';
+import { loadDonorYahrzeits, saveDonorYahrzeits, syncDonorAutoReminders } from '@/lib/reminders/donorAuto';
 import { Protect, LockedText } from '@/components/Protect';
 import { logActivity } from '@/lib/logger';
 
@@ -13,6 +13,8 @@ import { X, Save, User, Loader2, Trash2 } from 'lucide-react';
 import {
   donorToFormData,
   formDataToPayload,
+  newYahrzeitKey,
+  validYahrzeits,
   type DonorFormData,
 } from './donors/form/donorFormData';
 import DonorIdentitySection from './donors/form/DonorIdentitySection';
@@ -69,6 +71,23 @@ export default function DonorFormModal({
   const [formData, setFormData] = useState<DonorFormData>(() =>
     donorToFormData(donorToEdit)
   );
+
+  // ימי היארצייט נשמרים בטבלה נפרדת – נטענים אחרי הפתיחה
+  const editId = donorToEdit?.id;
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    loadDonorYahrzeits(editId).then((list) => {
+      if (cancelled) return;
+      setFormData((prev) => ({
+        ...prev,
+        yahrzeits: list.map((y) => ({ key: newYahrzeitKey(), id: y.id, day: y.day, month: y.month, name: y.name ?? '' })),
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
 
   // =====================================================
   // בזמן טעינת הרשאות
@@ -269,17 +288,19 @@ export default function DonorFormModal({
         return;
       }
 
-      // תזכורות אוטומטיות: יום הולדת (לועזי + עברי) ויארצייט
+      // ימי יארצייט + תזכורות אוטומטיות (יום הולדת לועזי + עברי, יארצייטים)
       if (savedDonorId) {
+        const yz = await saveDonorYahrzeits(savedDonorId, validYahrzeits(formData.yahrzeits));
+        if (yz.error) toast.warning(`התורם נשמר, אבל שמירת ימי היארצייט נכשלה: ${yz.error}`);
+
         const sync = await syncDonorAutoReminders(
           {
             id: savedDonorId,
             name: donorFullName,
             birthday: payload.birthday,
             birthday_after_sunset: payload.birthday_after_sunset,
-            yahrzeit_hebrew_day: payload.yahrzeit_hebrew_day,
-            yahrzeit_hebrew_month: payload.yahrzeit_hebrew_month,
-            yahrzeit_of: payload.yahrzeit_of,
+            // אם השמירה נכשלה באמצע – מסנכרנים לפי מה שבאמת שמור במסד
+            yahrzeits: yz.error ? await loadDonorYahrzeits(savedDonorId) : yz.saved,
           },
           user?.id
         );

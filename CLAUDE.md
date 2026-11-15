@@ -39,13 +39,16 @@
 - `src/components/Toaster.tsx` – הודעות: `toast.success/error/info/warning/denied`. **לא משתמשים ב-`alert()`**
 - `src/lib/supabase.ts` (דפדפן, `createBrowserClient<Database>` – מוקלד), `src/lib/supabase-admin.ts` (service role, **צד שרת בלבד**)
 - `src/lib/storage.ts` – `toStorageRef` / `getFileUrl` / `openSecureFile` לקבצים פרטיים
+- `src/lib/reminders/` – מנוע תזכורות: `recurrence.ts` (מופעים/מצב), `hebrew.ts`, `dates.ts`, `actions.ts`, `donorAuto.ts` (תזכורות אוטומטיות + `donor_yahrzeits`)
+- `src/lib/email/` – `templates.ts` (משותף), `server.ts` (**צד שרת בלבד**, Gmail/nodemailer); `src/lib/server-auth.ts` – בדיקת הרשאה ב-API
+- `src/components/DateInput.tsx` – שדה תאריך DD/MM/YYYY. **לא משתמשים ב-`type="date"`**
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`
 - `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`, `Reminder`
 - `src/types/database.ts` – טיפוסים שנוצרו ממסד הנתונים (לייצר מחדש אחרי שינוי סכמה)
 - `supabase/migrations/` – כל שינוי במסד הנתונים, לפי סדר
 
 ## מסד נתונים ואבטחה
-- טבלאות: `donors`, `donations`, `donor_documents`, `reminders`, `user_profiles` (id = auth.users.id, role_id),
+- טבלאות: `donors`, `donations`, `donor_documents`, `donor_yahrzeits`, `reminders`, `email_settings`, `email_secrets` (רק service_role), `email_outbox`, `user_profiles` (id = auth.users.id, role_id),
   `roles` (name, permissions JSONB, denied_display JSONB), `audit_logs`.
 - `roles.denied_display` = `{perm: 'locked'}` להרשאות אסורות שמוצגות חסומות; חסר = מוסתר. תצוגה בלבד, לא אבטחה.
 - **RLS פעיל על כל הטבלאות.** כל מדיניות משתמשת ב-`public.has_permission('<perm>')`, שקוראת את

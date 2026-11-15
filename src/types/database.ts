@@ -94,6 +94,138 @@ export type Database = {
           },
         ]
       }
+      donor_yahrzeits: {
+        Row: {
+          created_at: string
+          donor_id: string
+          hebrew_day: number
+          hebrew_month: number
+          id: string
+          name: string | null
+        }
+        Insert: {
+          created_at?: string
+          donor_id: string
+          hebrew_day: number
+          hebrew_month: number
+          id?: string
+          name?: string | null
+        }
+        Update: {
+          created_at?: string
+          donor_id?: string
+          hebrew_day?: number
+          hebrew_month?: number
+          id?: string
+          name?: string | null
+        }
+        Relationships: []
+      }
+      email_outbox: {
+        Row: {
+          body: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          donor_id: string | null
+          error: string | null
+          id: string
+          kind: string
+          occurrence_date: string | null
+          reminder_id: string | null
+          send_on: string
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          donor_id?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          occurrence_date?: string | null
+          reminder_id?: string | null
+          send_on?: string
+          sent_at?: string | null
+          status: string
+          subject: string
+          to_email: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          donor_id?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          occurrence_date?: string | null
+          reminder_id?: string | null
+          send_on?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string
+        }
+        Relationships: []
+      }
+      email_secrets: {
+        Row: {
+          gmail_app_password: string | null
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          gmail_app_password?: string | null
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          gmail_app_password?: string | null
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_settings: {
+        Row: {
+          enabled: boolean
+          from_name: string
+          gmail_user: string | null
+          id: number
+          manager_emails: string[]
+          templates: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          from_name?: string
+          gmail_user?: string | null
+          id?: number
+          manager_emails?: string[]
+          templates?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          from_name?: string
+          gmail_user?: string | null
+          id?: number
+          manager_emails?: string[]
+          templates?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       donor_documents: {
         Row: {
           created_at: string | null
@@ -253,6 +385,7 @@ export type Database = {
           repeat_until: string | null
           snoozed_until: string | null
           source: string
+          yahrzeit_id: string | null
         }
         Insert: {
           attachments?: Json | null
@@ -286,6 +419,7 @@ export type Database = {
           repeat_until?: string | null
           snoozed_until?: string | null
           source?: string
+          yahrzeit_id?: string | null
         }
         Update: {
           attachments?: Json | null
@@ -319,6 +453,7 @@ export type Database = {
           repeat_until?: string | null
           snoozed_until?: string | null
           source?: string
+          yahrzeit_id?: string | null
         }
         Relationships: [
           {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import DateInput from '@/components/DateInput';
 import {
   X, Check, Undo2, Clock, Pencil, Trash2, User, Repeat, Bell, Mail,
   Paperclip, CalendarDays, Sparkles, Loader2, AlarmClockOff,
@@ -222,13 +223,7 @@ export default function ReminderCardModal({ reminder, donor, onClose, onChanged,
                 ))}
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={snoozeDate}
-                  min={today}
-                  onChange={(e) => setSnoozeDate(e.target.value)}
-                  className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-sm bg-white"
-                />
+                <DateInput value={snoozeDate} min={today} onChange={setSnoozeDate} className="max-w-[11rem]" />
                 <button
                   disabled={busy || !snoozeDate}
                   onClick={() => snoozeTo(snoozeDate)}

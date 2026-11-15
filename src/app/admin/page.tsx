@@ -3,17 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, Users, Key, ArrowRight, Loader2, History } from 'lucide-react';
+import { ShieldAlert, Users, Key, ArrowRight, Loader2, History, Mail } from 'lucide-react';
 import UsersTab from './UsersTab';
 import RolesTab from './RolesTab';
 import { AuditLogTab } from './AuditLogTab';
+import EmailTab from './EmailTab';
 import { toast } from '@/components/Toaster';
 
 export default function AdminPage() {
   const { profile, hasPermission, loading } = useAuth();
   const router = useRouter();
   
-  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'logs' | 'email'>('users');
 
   useEffect(() => {
     if (loading) return;
@@ -103,6 +104,20 @@ export default function AdminPage() {
                 <History className="w-4 h-4" />
                 יומן פעילות
               </button>
+
+              <button
+                onClick={() => setActiveTab('email')}
+                className={`
+                  flex-1 md:flex-none px-6 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2
+                  ${activeTab === 'email'
+                    ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                  }
+                `}
+              >
+                <Mail className="w-4 h-4" />
+                מיילים
+              </button>
             </div>
           </div>
 
@@ -111,6 +126,7 @@ export default function AdminPage() {
             {activeTab === 'users' && <UsersTab />}
             {activeTab === 'roles' && <RolesTab />}
             {activeTab === 'logs' && <AuditLogTab />}
+            {activeTab === 'email' && <EmailTab />}
           </div>
         </div>
       </div>

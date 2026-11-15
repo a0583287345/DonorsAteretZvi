@@ -12,7 +12,8 @@ import type { Reminder } from '@/types/donor';
 import ReminderCardModal from './reminders/ReminderCardModal';
 import { STATUS_STYLES } from './reminders/reminderUi';
 import { formatGregorian, todayISO } from '@/lib/reminders/dates';
-import { formatHebrewDate } from '@/lib/reminders/hebrew';
+import { formatHebrewDate, formatHebrewParts, toHebrewParts } from '@/lib/reminders/hebrew';
+import { loadDonorYahrzeits, type SavedYahrzeit } from '@/lib/reminders/donorAuto';
 import { describeRepeat, reminderState } from '@/lib/reminders/recurrence';
 
 import {
@@ -317,6 +318,20 @@ export default function DonorCard({
   const [remindersError, setRemindersError] = useState(false);
   const [remindersReload, setRemindersReload] = useState(0);
   const [openReminderId, setOpenReminderId] = useState<string | null>(null);
+
+  // ימי יארצייט (טבלה נפרדת)
+  const [yahrzeits, setYahrzeits] = useState<SavedYahrzeit[]>([]);
+  const donorIdForYahrzeits = donor?.id;
+  useEffect(() => {
+    if (!donorIdForYahrzeits) return;
+    let cancelled = false;
+    loadDonorYahrzeits(donorIdForYahrzeits).then((list) => {
+      if (!cancelled) setYahrzeits(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [donorIdForYahrzeits, remindersRefreshKey]);
   const today = todayISO();
 
   /* =======================================================
@@ -592,10 +607,36 @@ export default function DonorCard({
         {/* DATES + ADDITIONAL DETAILS */}
         <div className="grid grid-cols-4 gap-3">
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-            <InfoItem icon={<Cake className="w-3.5 h-3.5" />} label="תאריך לידה" value={formatDate(donor.birthday)} />
+            <InfoItem
+              icon={<Cake className="w-3.5 h-3.5" />}
+              label="תאריך לידה"
+              value={
+                donor.birthday
+                  ? `${formatDate(donor.birthday)} · ${(() => {
+                      const p = toHebrewParts(donor.birthday, !!donor.birthday_after_sunset);
+                      return formatHebrewParts(p.day, p.month, p.year);
+                    })()}`
+                  : undefined
+              }
+            />
           </div>
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-            <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="יארצייט" value={formatDate(donor.yahrzeit_date)} />
+            <InfoItem
+              icon={<Calendar className="w-3.5 h-3.5" />}
+              label="ימי יארצייט"
+              value={
+                yahrzeits.length > 0 ? (
+                  <span className="flex flex-col gap-0.5">
+                    {yahrzeits.map((y) => (
+                      <span key={y.id}>
+                        {formatHebrewParts(y.day, y.month)}
+                        {y.name ? ` – ${y.name}` : ''}
+                      </span>
+                    ))}
+                  </span>
+                ) : undefined
+              }
+            />
           </div>
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
             <InfoItem icon={<User className="w-3.5 h-3.5" />} label="איש קשר" value={donor.connected_contact} />

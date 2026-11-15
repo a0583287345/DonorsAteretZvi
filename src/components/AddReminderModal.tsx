@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import DateInput from './DateInput';
 import { supabase } from '@/lib/supabase';
 import { toStorageRef, openSecureFile } from '@/lib/storage';
 import { useAuth } from '@/components/AuthContext';
@@ -303,13 +304,12 @@ export default function AddReminderModal({
 
               {dateType === 'gregorian' ? (
                 <div className="space-y-1">
-                  <input
-                    type="date"
+                  <DateInput
                     required
                     value={gregorianDate}
-                    onChange={(e) => setGregorianDate(e.target.value)}
+                    onChange={setGregorianDate}
                     disabled={isAuto}
-                    className={`${fieldClass} max-w-xs`}
+                    className="max-w-xs"
                   />
                   {gregorianDate && (
                     <p className="text-xs text-slate-500">

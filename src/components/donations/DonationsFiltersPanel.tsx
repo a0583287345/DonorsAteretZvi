@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import DateInput from '@/components/DateInput';
 import type { Donor } from '@/types/donor';
 import { getPaymentMethodLabel, type DonationSort } from './donationUtils';
 import type { DonationFilters } from './useDonationFilters';
@@ -500,25 +501,7 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
                 מתאריך
               </label>
 
-              <input
-                type="date"
-                value={donationDateFrom}
-                onChange={(e) =>
-                  setDonationDateFrom(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
-              />
+              <DateInput value={donationDateFrom} onChange={setDonationDateFrom} />
             </div>
 
             <div>
@@ -526,25 +509,7 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
                 עד תאריך
               </label>
 
-              <input
-                type="date"
-                value={donationDateTo}
-                onChange={(e) =>
-                  setDonationDateTo(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
-              />
+              <DateInput value={donationDateTo} onChange={setDonationDateTo} />
             </div>
 
             <div>
