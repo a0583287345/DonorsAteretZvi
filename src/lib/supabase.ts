@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -7,4 +7,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('חסרים מפתחות התחברות ל-Supabase בקובץ .env.local');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// הלקוח שומר את ההתחברות ב-cookies (ולא ב-localStorage),
+// כך שגם השרת (src/proxy.ts) יכול לזהות את המשתמש המחובר.
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
