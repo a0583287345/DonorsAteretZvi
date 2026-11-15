@@ -1,17 +1,11 @@
 'use client';
 
+import type { Tables } from '@/types/database';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Protect } from '@/components/Protect';
 
-interface LogItem {
-  id: string;
-  action: string;
-  table_name: string;
-  description: string;
-  user_name: string;
-  created_at: string;
-}
+type LogItem = Tables<'audit_logs'>;
 
 export function AuditLogTab() {
   const [logs, setLogs] = useState<LogItem[]>([]);

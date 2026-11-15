@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthContext';
+import { logActivity } from '@/lib/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { Donor } from '@/types/donor';
@@ -27,15 +27,30 @@ import type { Reminder } from '@/types/donor';
 export type { Reminder };
 
 interface RemindersTabProps {
-  donors: Donor[];
   donorMap: Map<string, Donor>;
   onAddReminder: (donorId?: string, e?: React.MouseEvent) => void;
   onEditReminder: (reminder: Reminder, e?: React.MouseEvent) => void;
   onViewDonor: (donor: Donor) => void;
 }
 
+async function loadReminders(): Promise<Reminder[]> {
+  try {
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('*')
+      .order('gregorian_date', { ascending: true });
+    if (error) {
+      console.error('שגיאה בטעינת תזכורות:', error.message);
+      return [];
+    }
+    return (data || []) as Reminder[];
+  } catch (err) {
+    console.error('שגיאה בלתי צפויה בטעינת תזכורות:', err);
+    return [];
+  }
+}
+
 export default function RemindersTab({
-  donors,
   donorMap,
   onAddReminder,
   onEditReminder,
@@ -44,8 +59,7 @@ export default function RemindersTab({
   /* ============================================================
      אימות משתמש והרשאות
   ============================================================ */
-  const { user, profile } = useAuth();
-  const { hasPermission, loadingPerms } = usePermissions();
+    const { hasPermission, loadingPerms } = usePermissions();
 
   const canEditReminders = hasPermission('reminders_edit');
   const canDeleteReminders = hasPermission('reminders_delete');
@@ -72,56 +86,25 @@ export default function RemindersTab({
   }, [donorMap]);
 
   /* ============================================================
-     פונקציית רישום בלוג (Audit Log) - מותאמת לסכמה שלך
-  ============================================================ */
-  const logAudit = useCallback(
-    async (action: string, descriptionText: string) => {
-      try {
-        const { error } = await supabase.from('audit_logs').insert({
-          user_id: user?.id || null,
-          user_name: profile?.full_name || user?.email || 'משתמש לא ידוע',
-          action: action,
-          table_name: 'reminders',
-          description: descriptionText,
-          created_at: new Date().toISOString(),
-        });
-
-        if (error) {
-          console.error('שגיאה בשמירת לוג ב-Supabase:', error.message);
-        }
-      } catch (err) {
-        console.error('שגיאה בלתי צפויה ברישום לוג:', err);
-      }
-    },
-    [user?.id, user?.email, profile?.full_name]
-  );
-
-  /* ============================================================
      טעינת תזכורות
   ============================================================ */
   const fetchReminders = useCallback(async () => {
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('reminders')
-        .select('*')
-        .order('gregorian_date', { ascending: true });
-
-      if (error) {
-        console.error('שגיאה בטעינת תזכורות:', error);
-      } else if (data) {
-        setReminders(data as Reminder[]);
-      }
-    } catch (err) {
-      console.error('שגיאה בלתי צפויה בטעינת תזכורות:', err);
-    } finally {
-      setLoading(false);
-    }
+    setReminders(await loadReminders());
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchReminders();
-  }, [fetchReminders]);
+    let cancelled = false;
+    loadReminders().then((data) => {
+      if (cancelled) return;
+      setReminders(data);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* ============================================================
      שינוי סטטוס תזכורת (ביצוע / ביטול ביצוע) + לוג
@@ -157,8 +140,9 @@ export default function RemindersTab({
       const actionType = updatedStatus ? 'REMINDER_MARKED_COMPLETE' : 'REMINDER_MARKED_PENDING';
       const statusText = updatedStatus ? 'הושלם' : 'הוחזר למצב ממתין';
       
-      await logAudit(
+      await logActivity(
         actionType,
+        'reminders',
         `שינוי סטטוס תזכורת "${reminder.title}" ל-${statusText} (משויכת לתורם: ${donorName})`
       );
     } catch (err) {
@@ -198,8 +182,9 @@ export default function RemindersTab({
 
       setReminders((prev) => prev.filter((item) => item.id !== reminder.id));
 
-      await logAudit(
+      await logActivity(
         'REMINDER_DELETED',
+        'reminders',
         `מחק תזכורת "${reminder.title}" שהייתה משויכת לתורם "${donorName}"`
       );
     } catch (err) {

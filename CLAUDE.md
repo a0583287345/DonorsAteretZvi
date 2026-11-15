@@ -17,7 +17,7 @@
 ## פקודות
 - `npm run dev` – שרת פיתוח (http://localhost:3000)
 - `npm run build` – חייב לעבור לפני push ל-main
-- `npm run lint` – ESLint (יש שגיאות ישנות; אסור להוסיף חדשות)
+- `npm run lint` – ESLint (נקי: 0 שגיאות/אזהרות – לשמור על זה)
 
 ## מבנה
 - `src/app/page.tsx` – הדשבורד הראשי: לשוניות תורמים/תרומות/תזכורות (`?tab=`), presence
@@ -25,6 +25,10 @@
 - `src/app/admin/` – פאנל ניהול: `UsersTab`, `RolesTab`, `AuditLogTab` (דורש `manage_users`)
 - `src/app/api/admin/users/route.ts` – API בצד השרת ליצירת משתמשים/איפוס סיסמה (service role)
 - `src/components/` – הלשוניות, המודאלים (`*FormModal`, `*CardModal`) ו-`DonorCard`
+  - `donations/` – חלקי לשונית התרומות: `useDonationFilters`, `useDonationDocuments`, `donationUtils` (תוויות, CSV), פילטרים/סיכום/טבלה
+  - `donors/` – חלקי לשונית התורמים: `useDonorFilters`, `donorUtils` (ייצוא, ניווט), פילטרים/טבלה/`NavigationPicker`
+  - `donors/form/` – חלקי טופס התורם + `donorFormData.ts` (המרה תורם ↔ טופס ↔ payload)
+- מודאלים נטענים רק כשהם פתוחים ומקבלים `key`, לכן הטופס מאותחל מה-props ב-`useState` (לא באפקט)
 - `src/proxy.ts` – בצד השרת: משתמש לא מחובר מועבר ל-`/login` (session ב-cookies דרך `@supabase/ssr`)
 - `src/components/AuthContext.tsx` – **מקור יחיד** ל-session, פרופיל, תפקיד והרשאות (`useAuth`):
   `hasPermission`, `access(perm)` → `allowed`/`locked`/`hidden`, `requirePermission(perm)` (מציג הודעה אם אסור)
@@ -33,7 +37,7 @@
   (בהרשאת צפייה: "🔒 אין הרשאה"); מוסתר → לא מוצג. `LockedText` לטקסט חסום
 - `src/lib/permissions.ts` – רשימת כל ההרשאות (id, תווית, `kind: action|view`) – מקור יחיד
 - `src/components/Toaster.tsx` – הודעות: `toast.success/error/info/warning/denied`. **לא משתמשים ב-`alert()`**
-- `src/lib/supabase.ts` (דפדפן), `src/lib/supabase-admin.ts` (service role, **צד שרת בלבד**)
+- `src/lib/supabase.ts` (דפדפן, `createBrowserClient<Database>` – מוקלד), `src/lib/supabase-admin.ts` (service role, **צד שרת בלבד**)
 - `src/lib/storage.ts` – `toStorageRef` / `getFileUrl` / `openSecureFile` לקבצים פרטיים
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`
 - `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`, `Reminder`
@@ -59,7 +63,7 @@ donations_view / donations_create / donations_edit / donations_delete / donation
 documents_view / documents_upload / documents_delete,
 reminders_view / reminders_create / reminders_edit / reminders_delete.
 הרשאה חדשה = להוסיף אותה ב-`src/lib/permissions.ts` + `<Protect permId>` ב-UI + **מדיניות RLS במסד**.
-`donations_view_amount` נאכף כרגע רק ב-UI.
+`donations_view_amount` ו-`donors_view_contact` נאכפים רק ב-UI (החלטה – לא לאכוף במסד).
 
 ## כללים
 - כל הטקסטים למשתמש בעברית, `dir="rtl"`. הערות בקוד בעברית זה בסדר.

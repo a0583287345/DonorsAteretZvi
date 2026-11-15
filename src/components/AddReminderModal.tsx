@@ -12,6 +12,7 @@ import {
 import { logActivity } from '@/lib/logger'; 
 import { toast } from '@/components/Toaster';
 import type { Reminder, ReminderAttachment } from '@/types/donor';
+import type { Json } from '@/types/database';
 
 type DonorOption = { id: string; first_name_he: string | null; last_name_he: string | null };
 
@@ -152,7 +153,8 @@ export default function AddReminderModal({
         is_recurring: isRecurring,
         recurring_type: isRecurring ? recurringType : null,
         notify_email: notifyEmail,
-        attachments: finalAttachments
+        // עמודת JSON במסד – רשימת הקבצים נשמרת כמו שהיא
+        attachments: finalAttachments as unknown as Json,
       };
 
       if (editingReminder) {

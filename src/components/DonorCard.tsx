@@ -62,11 +62,11 @@ export interface ReminderRecord {
   description?: string | null;
   gregorian_date: string; // YYYY-MM-DD
   hebrew_date?: string | null;
-  is_recurring: boolean;
-  recurring_type?: 'yearly_hebrew' | 'yearly_gregorian' | 'monthly' | 'none' | null;
-  notify_email: boolean;
+  is_recurring: boolean | null;
+  recurring_type?: string | null; // yearly_hebrew / yearly_gregorian / monthly / none
+  notify_email: boolean | null;
   notify_time?: string | null; // ISO string
-  email_sent: boolean;
+  email_sent: boolean | null;
   file_url?: string | null;
   created_by?: string | null;
   created_at?: string | null;

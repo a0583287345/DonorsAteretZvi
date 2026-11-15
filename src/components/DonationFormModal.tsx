@@ -57,15 +57,29 @@ export default function DonationFormModal({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState<Partial<Donation>>({
-    donor_id: preselectedDonorId || '',
-    amount: 0,
-    currency: 'ILS',
-    payment_method: 'credit_card',
-    donation_date: new Date().toISOString().split('T')[0],
-    receipt_number: '',
-    notes: '',
-  });
+  // הטופס מאותחל מהתרומה לעריכה בעת הפתיחה (הקומפוננטה נטענת מחדש בכל פתיחה)
+  const [formData, setFormData] = useState<Partial<Donation>>(() =>
+    editingDonation
+      ? {
+          id: editingDonation.id,
+          donor_id: editingDonation.donor_id || '',
+          amount: Number(editingDonation.amount) || 0,
+          currency: editingDonation.currency || 'ILS',
+          payment_method: editingDonation.payment_method || 'credit_card',
+          donation_date: editingDonation.donation_date || new Date().toISOString().split('T')[0],
+          receipt_number: editingDonation.receipt_number || '',
+          notes: editingDonation.notes || '',
+        }
+      : {
+          donor_id: preselectedDonorId || '',
+          amount: 0,
+          currency: 'ILS',
+          payment_method: 'credit_card',
+          donation_date: new Date().toISOString().split('T')[0],
+          receipt_number: '',
+          notes: '',
+        }
+  );
 
   const isEditMode = !!editingDonation;
   
@@ -73,40 +87,35 @@ export default function DonationFormModal({
   const hasFormPermission = isEditMode ? hasPermission('donations_edit') : hasPermission('donations_create');
   const isActionAllowed = canEdit && hasFormPermission;
 
+  // טעינת רשימת התורמים, ומילוי שם התורם שכבר נבחר
+  const initialDonorId = editingDonation?.donor_id || preselectedDonorId || null;
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
 
-    fetchDonors();
-    setFilesToUpload([]);
+    (async () => {
+      const { data, error } = await supabase
+        .from('donors')
+        .select('*')
+        .order('first_name_he', { ascending: true });
 
-    if (editingDonation) {
-      setFormData({
-        id: editingDonation.id,
-        donor_id: editingDonation.donor_id || '',
-        amount: Number(editingDonation.amount) || 0,
-        currency: editingDonation.currency || 'ILS',
-        payment_method:
-          editingDonation.payment_method || 'credit_card',
-        donation_date:
-          editingDonation.donation_date ||
-          new Date().toISOString().split('T')[0],
-        receipt_number: editingDonation.receipt_number || '',
-        notes: editingDonation.notes || '',
-      });
+      if (cancelled) return;
+      if (error) {
+        console.error('שגיאה בטעינת תורמים:', error);
+        return;
+      }
 
-      setDonorSearch('');
-    } else {
-      setFormData({
-        donor_id: preselectedDonorId || '',
-        amount: 0,
-        currency: 'ILS',
-        payment_method: 'credit_card',
-        donation_date: new Date().toISOString().split('T')[0],
-        receipt_number: '',
-        notes: '',
-      });
-    }
-  }, [isOpen, preselectedDonorId, editingDonation]);
+      const list = (data || []) as Donor[];
+      setDonors(list);
+
+      const found = initialDonorId ? list.find((d) => d.id === initialDonorId) : undefined;
+      setDonorSearch(found ? `${found.first_name_he || ''} ${found.last_name_he || ''}`.trim() : '');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, initialDonorId]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -122,38 +131,6 @@ export default function DonationFormModal({
     return () =>
       document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  async function fetchDonors() {
-    const { data, error } = await supabase
-      .from('donors')
-      .select('*')
-      .order('first_name_he', { ascending: true });
-
-    if (error) {
-      console.error('שגיאה בטעינת תורמים:', error);
-      return;
-    }
-
-    if (data) {
-      setDonors(data as Donor[]);
-
-      const donorId =
-        editingDonation?.donor_id || preselectedDonorId;
-
-      if (donorId) {
-        const found = data.find((d) => d.id === donorId);
-        if (found) {
-          setDonorSearch(
-            `${found.first_name_he || ''} ${
-              found.last_name_he || ''
-            }`.trim()
-          );
-        }
-      } else {
-        setDonorSearch('');
-      }
-    }
-  }
 
   if (!isOpen) return null;
 

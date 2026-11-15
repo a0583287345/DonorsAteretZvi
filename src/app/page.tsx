@@ -214,6 +214,9 @@ function DashboardContent() {
      בדיקת אימות משתמש,
      טעינת נתונים ומעקב חי אחרי משתמשים
   ============================================================ */
+  const userId = user?.id;
+  const canViewDashboard = hasPermission('view_dashboard');
+
   useEffect(() => {
     let presenceChannel: RealtimeChannel | null = null;
 
@@ -222,12 +225,12 @@ function DashboardContent() {
         return;
       }
 
-      if (!user) {
+      if (!userId) {
         router.push('/login');
         return;
       }
 
-      if (!hasPermission('view_dashboard')) {
+      if (!canViewDashboard) {
         return;
       }
 
@@ -256,7 +259,7 @@ function DashboardContent() {
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
-              user_id: user.id,
+              user_id: userId,
               nickname: currentUserNickname,
               role: currentUserRole,
             });
@@ -272,7 +275,8 @@ function DashboardContent() {
       }
     };
   }, [
-    user?.id,
+    userId,
+    canViewDashboard,
     authLoading,
     loadingPerms,
     router,
@@ -550,12 +554,6 @@ function DashboardContent() {
   }
 
   /* ============================================================
-     סטטיסטיקות
-  ============================================================ */
-  const activeRecurring = donors.filter((donor) => donor.is_recurring).length;
-  const yissacharZevulunCount = donors.filter((donor) => donor.has_yissachar_zevulun).length;
-
-  /* ============================================================
      חומת המגן
   ============================================================ */
   if (authLoading || loadingPerms) {
@@ -727,8 +725,6 @@ function DashboardContent() {
             <DonorsTab
               donors={donors}
               loading={loading}
-              activeRecurring={activeRecurring}
-              yissacharZevulunCount={yissacharZevulunCount}
               onCreateDonor={handleOpenCreateDonor}
               onViewDonor={handleOpenViewDonor}
               onAddDonation={handleOpenAddDonation}
@@ -753,7 +749,6 @@ function DashboardContent() {
           {/* TAB: REMINDERS */}
           {activeTab === 'reminders' && canViewReminders && (
             <RemindersTab
-              donors={donors}
               donorMap={donorMap}
               onAddReminder={handleOpenAddReminder}
               onEditReminder={handleOpenEditReminder}
@@ -829,6 +824,7 @@ function DashboardContent() {
         {/* DONOR FORM MODAL */}
         {isDonorModalOpen && (
           <DonorFormModal
+            key={selectedDonorToEdit?.id ?? 'new'}
             isOpen={isDonorModalOpen}
             onClose={() => setIsDonorModalOpen(false)}
             onSuccess={() => fetchData()}
@@ -839,6 +835,7 @@ function DashboardContent() {
         {/* DONATION FORM MODAL */}
         {isDonationModalOpen && (
           <DonationFormModal
+            key={selectedDonationToEdit?.id ?? `new-${selectedDonorForDonation ?? ''}`}
             isOpen={isDonationModalOpen}
             onClose={handleCloseDonationModal}
             onSuccess={() => {
