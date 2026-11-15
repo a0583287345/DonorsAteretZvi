@@ -94,6 +94,9 @@ function DashboardContent() {
   ============================================================ */
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
+  // מונה שגורם ללשונית התזכורות לטעון מחדש אחרי שמירה
+  const [remindersRefreshKey, setRemindersRefreshKey] = useState(0);
+
   /* ============================================================
      נתונים
   ============================================================ */
@@ -753,6 +756,7 @@ function DashboardContent() {
               onAddReminder={handleOpenAddReminder}
               onEditReminder={handleOpenEditReminder}
               onViewDonor={handleOpenViewDonor}
+              refreshKey={remindersRefreshKey}
             />
           )}
         </div>
@@ -798,6 +802,8 @@ function DashboardContent() {
                     onAddDonation={(e) => handleOpenAddDonation(selectedDonorForView.id, e)}
                     onAddReminder={(e) => handleOpenAddReminder(selectedDonorForView.id, e)}
                     onOpenDonationById={handleOpenDonationCardById}
+                    onEditReminder={(r) => handleOpenEditReminder(r)}
+                    remindersRefreshKey={remindersRefreshKey}
                   />
                 </div>
 
@@ -855,6 +861,7 @@ function DashboardContent() {
             onClose={handleCloseReminderModal}
             onSuccess={() => {
               fetchData();
+              setRemindersRefreshKey((k) => k + 1);
             }}
             preselectedDonorId={selectedDonorForReminder}
             editingReminder={selectedReminderToEdit}

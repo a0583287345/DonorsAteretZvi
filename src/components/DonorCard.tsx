@@ -8,6 +8,12 @@ import { openSecureFile } from '@/lib/storage';
 import { Donation, Attachment, SpecialDate } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect, LockedText } from '@/components/Protect';
+import type { Reminder } from '@/types/donor';
+import ReminderCardModal from './reminders/ReminderCardModal';
+import { STATUS_STYLES } from './reminders/reminderUi';
+import { formatGregorian, todayISO } from '@/lib/reminders/dates';
+import { formatHebrewDate } from '@/lib/reminders/hebrew';
+import { describeRepeat, reminderState } from '@/lib/reminders/recurrence';
 
 import {
   Phone,
@@ -55,22 +61,7 @@ export interface DonationRecord {
    סוג תזכורת מקומי
 ========================================================= */
 
-export interface ReminderRecord {
-  id: string;
-  donor_id?: string | null;
-  title: string;
-  description?: string | null;
-  gregorian_date: string; // YYYY-MM-DD
-  hebrew_date?: string | null;
-  is_recurring: boolean | null;
-  recurring_type?: string | null; // yearly_hebrew / yearly_gregorian / monthly / none
-  notify_email: boolean | null;
-  notify_time?: string | null; // ISO string
-  email_sent: boolean | null;
-  file_url?: string | null;
-  created_by?: string | null;
-  created_at?: string | null;
-}
+export type ReminderRecord = Reminder;
 
 /* =========================================================
    סוגי נתונים משולבים
@@ -101,18 +92,11 @@ export interface DonorCardProps {
     e?: React.MouseEvent
   ) => void | Promise<void>;
 
-  /*
-   * פתיחת פרטי תזכורת
-   */
-  onViewReminder?: (
-    reminder: ReminderRecord,
-    e?: React.MouseEvent
-  ) => void;
+  /** עריכת תזכורת (נפתח טופס התזכורת בדשבורד) */
+  onEditReminder?: (reminder: Reminder) => void;
 
-  onOpenReminderById?: (
-    reminderId: string,
-    e?: React.MouseEvent
-  ) => void | Promise<void>;
+  /** משתנה אחרי שמירת תזכורת – טוען מחדש את התזכורות בכרטיס */
+  remindersRefreshKey?: number;
 
   userRole?: 'admin' | 'manager' | 'viewer';
 }
@@ -294,8 +278,8 @@ export default function DonorCard({
   onAddReminder,
   onViewDonation,
   onOpenDonationById,
-  onViewReminder,
-  onOpenReminderById,
+  onEditReminder,
+  remindersRefreshKey = 0,
 }: DonorCardProps) {
   const { hasPermission, access, loadingPerms } = usePermissions();
 
@@ -331,6 +315,9 @@ export default function DonorCard({
   const [reminders, setReminders] = useState<ReminderRecord[]>(donor?.reminders || []);
   const [remindersLoading, setRemindersLoading] = useState(false);
   const [remindersError, setRemindersError] = useState(false);
+  const [remindersReload, setRemindersReload] = useState(0);
+  const [openReminderId, setOpenReminderId] = useState<string | null>(null);
+  const today = todayISO();
 
   /* =======================================================
      כתובת ושמות
@@ -441,7 +428,14 @@ export default function DonorCard({
           return;
         }
 
-        setReminders(data || []);
+        // מיון לפי המועד הבא (שבוצעו – בסוף)
+        const list = (data || []) as unknown as Reminder[];
+        setReminders(
+          list
+            .map((r) => ({ r, s: reminderState(r, todayISO()) }))
+            .sort((a, b) => (a.s.effectiveDate ?? '9999').localeCompare(b.s.effectiveDate ?? '9999'))
+            .map(({ r }) => r)
+        );
         setRemindersError(false);
       } catch {
         if (!cancelled) setRemindersError(true);
@@ -452,7 +446,7 @@ export default function DonorCard({
 
     void loadReminders();
     return () => { cancelled = true; };
-  }, [donor?.id, loadingPerms, canViewReminders]);
+  }, [donor?.id, loadingPerms, canViewReminders, remindersReload, remindersRefreshKey]);
 
   /* =======================================================
      בזמן טעינה / חסימת גישה
@@ -660,62 +654,50 @@ export default function DonorCard({
 
             {!remindersLoading && !remindersError && reminders.length > 0 && (
               <div className="p-2 grid grid-cols-1 gap-2">
-                {reminders.map((reminder) => (
-                  <div key={reminder.id} className="bg-white rounded-lg px-3 py-2.5 border border-slate-100 hover:border-blue-200 hover:shadow-sm transition">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-                          <CalendarClock className="w-4 h-4 text-blue-500" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold text-slate-800">{reminder.title}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                              {reminder.hebrew_date || formatDate(reminder.gregorian_date)}
-                            </span>
-                            {reminder.is_recurring && (
-                              <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                                חזרתי
-                              </span>
-                            )}
-                            {reminder.notify_email && (
-                              <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                                התראת מייל
-                              </span>
-                            )}
+                {reminders.map((reminder) => {
+                  const st = reminderState(reminder, today);
+                  const style = STATUS_STYLES[st.status];
+                  return (
+                    <button
+                      key={reminder.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenReminderId(reminder.id);
+                      }}
+                      className="w-full text-right bg-white rounded-lg px-3 py-2.5 border border-slate-100 hover:border-blue-200 hover:shadow-sm transition"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                            <CalendarClock className="w-4 h-4 text-blue-500" />
                           </div>
-                          {reminder.description && (
-                            <p className="text-[11px] text-slate-500 mt-1.5 truncate" title={reminder.description}>
-                              {reminder.description}
-                            </p>
-                          )}
+                          <div className="min-w-0">
+                            <div className={`text-sm font-bold ${st.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {reminder.title}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              {st.effectiveDate && (
+                                <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                  {formatHebrewDate(st.effectiveDate)} · {formatGregorian(st.effectiveDate)}
+                                </span>
+                              )}
+                              {reminder.repeat_unit && reminder.repeat_unit !== 'none' && (
+                                <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                                  {describeRepeat(reminder)}
+                                </span>
+                              )}
+                              {reminder.source && reminder.source !== 'manual' && (
+                                <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">אוטומטי</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border shrink-0 ${style.badge}`}>{style.label}</span>
                       </div>
-                      
-                      {/* כפתורי פעולה לשורת תזכורת */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {reminder.file_url && (
-                          <a href="#" onClick={(e) => openSecureFile(e, reminder.file_url)} className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 hover:underline shrink-0 bg-blue-50/50 px-2 py-1.5 rounded-lg border border-blue-100">
-                            <Paperclip className="w-3 h-3" /> מסמך
-                          </a>
-                        )}
-                        {(onOpenReminderById || onViewReminder) && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenReminderById) { void onOpenReminderById(reminder.id, e); return; }
-                              if (onViewReminder) { onViewReminder(reminder, e); }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 hover:text-blue-700 text-[10px] font-semibold transition whitespace-nowrap"
-                          >
-                            <FileText className="w-3.5 h-3.5" /> כניסה לפרטי תזכורות
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -910,6 +892,24 @@ export default function DonorCard({
           )}
         </div>
       )}
+
+      {openReminderId && (() => {
+        const r = reminders.find((x) => x.id === openReminderId);
+        if (!r) return null;
+        return (
+          <ReminderCardModal
+            reminder={r}
+            donor={donor}
+            onClose={() => setOpenReminderId(null)}
+            onChanged={() => setRemindersReload((k) => k + 1)}
+            onEdit={(rem) => {
+              setOpenReminderId(null);
+              onEditReminder?.(rem);
+            }}
+            onViewDonor={() => setOpenReminderId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

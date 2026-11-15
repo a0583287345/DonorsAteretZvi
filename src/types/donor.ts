@@ -32,10 +32,15 @@ export interface Donor {
   house_number: string | null;
   is_recurring: boolean;
   has_yissachar_zevulun: boolean;
-  yissachar_zevulun_with: string | null;
   yissachar_zevulun_name: string | null;
   birthday: string | null;
+  birthday_after_sunset?: boolean;
+  /** ישן – לא בשימוש. יארצייט נשמר כתאריך עברי בשדות הבאים */
   yahrzeit_date: string | null;
+  yahrzeit_hebrew_day?: number | null;
+  yahrzeit_hebrew_month?: number | null;
+  /** לעילוי נשמת (שם הנפטר) */
+  yahrzeit_of?: string | null;
   connected_contact: string | null;
   special_dates?: SpecialDate[] | null;
   notes: string | null;
@@ -82,4 +87,22 @@ export interface Reminder {
   attachments?: ReminderAttachment[] | null;
   created_at: string | null;
   created_by?: string | null;
+  // מנוע התזכורות (שלב 4)
+  date_type?: string;
+  hebrew_day?: number | null;
+  hebrew_month?: number | null;
+  hebrew_year?: number | null;
+  repeat_unit?: string;
+  repeat_interval?: number;
+  repeat_end_type?: string;
+  repeat_until?: string | null;
+  repeat_count?: number | null;
+  lead_days?: number;
+  completed_through?: string | null;
+  snoozed_until?: string | null;
+  /** manual / donor_birthday_gregorian / donor_birthday_hebrew / donor_yahrzeit */
+  source?: string;
+  /** none / birthday / memorial / custom */
+  donor_message_type?: string;
+  donor_message_custom?: string | null;
 }

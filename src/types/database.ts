@@ -161,6 +161,10 @@ export type Database = {
           street: string | null
           yahrzeit_date: string | null
           yissachar_zevulun_name: string | null
+          birthday_after_sunset: boolean
+          yahrzeit_hebrew_day: number | null
+          yahrzeit_hebrew_month: number | null
+          yahrzeit_of: string | null
         }
         Insert: {
           birthday?: string | null
@@ -183,6 +187,10 @@ export type Database = {
           street?: string | null
           yahrzeit_date?: string | null
           yissachar_zevulun_name?: string | null
+          birthday_after_sunset?: boolean
+          yahrzeit_hebrew_day?: number | null
+          yahrzeit_hebrew_month?: number | null
+          yahrzeit_of?: string | null
         }
         Update: {
           birthday?: string | null
@@ -205,6 +213,10 @@ export type Database = {
           street?: string | null
           yahrzeit_date?: string | null
           yissachar_zevulun_name?: string | null
+          birthday_after_sunset?: boolean
+          yahrzeit_hebrew_day?: number | null
+          yahrzeit_hebrew_month?: number | null
+          yahrzeit_of?: string | null
         }
         Relationships: []
       }
@@ -226,6 +238,21 @@ export type Database = {
           notify_time: string | null
           recurring_type: string | null
           title: string
+          completed_through: string | null
+          date_type: string
+          donor_message_custom: string | null
+          donor_message_type: string
+          hebrew_day: number | null
+          hebrew_month: number | null
+          hebrew_year: number | null
+          lead_days: number
+          repeat_count: number | null
+          repeat_end_type: string
+          repeat_interval: number
+          repeat_unit: string
+          repeat_until: string | null
+          snoozed_until: string | null
+          source: string
         }
         Insert: {
           attachments?: Json | null
@@ -244,6 +271,21 @@ export type Database = {
           notify_time?: string | null
           recurring_type?: string | null
           title: string
+          completed_through?: string | null
+          date_type?: string
+          donor_message_custom?: string | null
+          donor_message_type?: string
+          hebrew_day?: number | null
+          hebrew_month?: number | null
+          hebrew_year?: number | null
+          lead_days?: number
+          repeat_count?: number | null
+          repeat_end_type?: string
+          repeat_interval?: number
+          repeat_unit?: string
+          repeat_until?: string | null
+          snoozed_until?: string | null
+          source?: string
         }
         Update: {
           attachments?: Json | null
@@ -262,6 +304,21 @@ export type Database = {
           notify_time?: string | null
           recurring_type?: string | null
           title?: string
+          completed_through?: string | null
+          date_type?: string
+          donor_message_custom?: string | null
+          donor_message_type?: string
+          hebrew_day?: number | null
+          hebrew_month?: number | null
+          hebrew_year?: number | null
+          lead_days?: number
+          repeat_count?: number | null
+          repeat_end_type?: string
+          repeat_interval?: number
+          repeat_unit?: string
+          repeat_until?: string | null
+          snoozed_until?: string | null
+          source?: string
         }
         Relationships: [
           {

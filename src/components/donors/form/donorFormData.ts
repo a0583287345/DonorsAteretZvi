@@ -17,7 +17,11 @@ export interface DonorFormData {
   yissachar_zevulun_name: string;
   connected_contact: string;
   birthday: string;
-  yahrzeit_date: string;
+  birthday_after_sunset: boolean;
+  /** יארצייט – תאריך עברי בלבד (0 = לא הוגדר) */
+  yahrzeit_hebrew_day: number;
+  yahrzeit_hebrew_month: number;
+  yahrzeit_of: string;
   notes: string;
 }
 
@@ -45,7 +49,10 @@ export const emptyDonorFormData: DonorFormData = {
   yissachar_zevulun_name: '',
   connected_contact: '',
   birthday: '',
-  yahrzeit_date: '',
+  birthday_after_sunset: false,
+  yahrzeit_hebrew_day: 0,
+  yahrzeit_hebrew_month: 0,
+  yahrzeit_of: '',
   notes: '',
 };
 
@@ -69,7 +76,10 @@ export function donorToFormData(donor: Donor | null | undefined): DonorFormData 
     yissachar_zevulun_name: donor.yissachar_zevulun_name || '',
     connected_contact: donor.connected_contact || '',
     birthday: donor.birthday ? String(donor.birthday).slice(0, 10) : '',
-    yahrzeit_date: donor.yahrzeit_date ? String(donor.yahrzeit_date).slice(0, 10) : '',
+    birthday_after_sunset: Boolean(donor.birthday_after_sunset),
+    yahrzeit_hebrew_day: donor.yahrzeit_hebrew_day || 0,
+    yahrzeit_hebrew_month: donor.yahrzeit_hebrew_month || 0,
+    yahrzeit_of: donor.yahrzeit_of || '',
     notes: donor.notes || '',
   };
 }
@@ -77,6 +87,7 @@ export function donorToFormData(donor: Donor | null | undefined): DonorFormData 
 /** המרת הטופס לשורה בטבלת donors (שדות ריקים → null) */
 export function formDataToPayload(formData: DonorFormData) {
   const text = (value: string) => value.trim() || null;
+  const hasYahrzeit = formData.yahrzeit_hebrew_day > 0 && formData.yahrzeit_hebrew_month > 0;
   return {
     first_name_he: text(formData.first_name_he),
     last_name_he: text(formData.last_name_he),
@@ -97,7 +108,11 @@ export function formDataToPayload(formData: DonorFormData) {
         : null,
     connected_contact: text(formData.connected_contact),
     birthday: formData.birthday || null,
-    yahrzeit_date: formData.yahrzeit_date || null,
+    birthday_after_sunset: Boolean(formData.birthday && formData.birthday_after_sunset),
+    // יארצייט נשמר רק אם נבחרו גם יום וגם חודש
+    yahrzeit_hebrew_day: hasYahrzeit ? formData.yahrzeit_hebrew_day : null,
+    yahrzeit_hebrew_month: hasYahrzeit ? formData.yahrzeit_hebrew_month : null,
+    yahrzeit_of: hasYahrzeit ? text(formData.yahrzeit_of) : null,
     notes: text(formData.notes),
   };
 }

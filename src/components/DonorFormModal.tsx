@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/components/AuthContext';
+import { syncDonorAutoReminders } from '@/lib/reminders/donorAuto';
 import { Protect, LockedText } from '@/components/Protect';
 import { logActivity } from '@/lib/logger';
 
@@ -43,6 +45,7 @@ export default function DonorFormModal({
     access,
     loadingPerms,
   } = usePermissions();
+  const { user } = useAuth();
 
   const isEditMode = Boolean(donorToEdit?.id);
 
@@ -174,6 +177,7 @@ export default function DonorFormModal({
       const payload = formDataToPayload(formData);
 
       let error = null;
+      let savedDonorId: string | null = donorToEdit?.id ?? null;
 
       const donorFullName =
         `${formData.first_name_he || ''} ${
@@ -227,9 +231,12 @@ export default function DonorFormModal({
 
         const res = await supabase
           .from('donors')
-          .insert([payload]);
+          .insert([payload])
+          .select('id')
+          .single();
 
         error = res.error;
+        savedDonorId = res.data?.id ?? null;
 
         // =================================================
         // Audit Log - INSERT
@@ -260,6 +267,32 @@ export default function DonorFormModal({
         );
 
         return;
+      }
+
+      // תזכורות אוטומטיות: יום הולדת (לועזי + עברי) ויארצייט
+      if (savedDonorId) {
+        const sync = await syncDonorAutoReminders(
+          {
+            id: savedDonorId,
+            name: donorFullName,
+            birthday: payload.birthday,
+            birthday_after_sunset: payload.birthday_after_sunset,
+            yahrzeit_hebrew_day: payload.yahrzeit_hebrew_day,
+            yahrzeit_hebrew_month: payload.yahrzeit_hebrew_month,
+            yahrzeit_of: payload.yahrzeit_of,
+          },
+          user?.id
+        );
+        if (sync.error) {
+          toast.warning(`התורם נשמר, אבל עדכון התזכורות האוטומטיות נכשל: ${sync.error}`);
+        } else if (sync.created + sync.updated + sync.deleted > 0) {
+          await logActivity(
+            'UPDATE',
+            'reminders',
+            `תזכורות אוטומטיות לתורם ${donorFullName}: נוצרו ${sync.created}, עודכנו ${sync.updated}, נמחקו ${sync.deleted}`
+          );
+          toast.info('התזכורות האוטומטיות של התורם עודכנו');
+        }
       }
 
       onSuccess();
