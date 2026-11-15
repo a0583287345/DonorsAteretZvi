@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect } from '@/components/Protect';
 import { Donor } from '@/types/donor';
 import {
   Bell,
@@ -20,21 +21,10 @@ import {
   RefreshCw,
   Check,
 } from 'lucide-react';
+import { toast } from '@/components/Toaster';
 
-export interface Reminder {
-  id: string;
-  donor_id: string | null;
-  title: string;
-  description?: string;
-  gregorian_date: string;
-  hebrew_date?: string;
-  is_recurring?: boolean;
-  recurring_type?: string;
-  notify_email?: boolean;
-  is_completed?: boolean;
-  created_at: string;
-  created_by?: string;
-}
+import type { Reminder } from '@/types/donor';
+export type { Reminder };
 
 interface RemindersTabProps {
   donors: Donor[];
@@ -57,7 +47,6 @@ export default function RemindersTab({
   const { user, profile } = useAuth();
   const { hasPermission, loadingPerms } = usePermissions();
 
-  const canCreateReminders = hasPermission('reminders_create');
   const canEditReminders = hasPermission('reminders_edit');
   const canDeleteReminders = hasPermission('reminders_delete');
 
@@ -141,7 +130,7 @@ export default function RemindersTab({
     e.stopPropagation();
 
     if (!canEditReminders) {
-      alert('אין לך הרשאה לעדכן תזכורות במערכת.');
+      toast.denied('אין לך הרשאה לעדכן תזכורות במערכת.');
       return;
     }
 
@@ -174,7 +163,7 @@ export default function RemindersTab({
       );
     } catch (err) {
       console.error('שגיאה בעדכון סטטוס תזכורת:', err);
-      alert('אירעה שגיאה בעדכון סטטוס התזכורת.');
+      toast.error('אירעה שגיאה בעדכון סטטוס התזכורת.');
     } finally {
       setActionLoadingId(null);
     }
@@ -187,7 +176,7 @@ export default function RemindersTab({
     e.stopPropagation();
 
     if (!canDeleteReminders) {
-      alert('אין לך הרשאה למחוק תזכורות.');
+      toast.denied('אין לך הרשאה למחוק תזכורות.');
       return;
     }
 
@@ -215,7 +204,7 @@ export default function RemindersTab({
       );
     } catch (err) {
       console.error('שגיאה במחיקת תזכורת:', err);
-      alert('אירעה שגיאה במחיקת התזכורת.');
+      toast.error('אירעה שגיאה במחיקת התזכורת.');
     } finally {
       setActionLoadingId(null);
     }
@@ -345,7 +334,7 @@ export default function RemindersTab({
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-purple-600' : ''}`} />
           </button>
 
-          {canCreateReminders && (
+          <Protect permId="reminders_create">
             <button
               onClick={(e) => onAddReminder(undefined, e)}
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-sm"
@@ -353,7 +342,7 @@ export default function RemindersTab({
               <Plus className="w-4 h-4" />
               תזכורת חדשה
             </button>
-          )}
+          </Protect>
         </div>
       </div>
 
@@ -438,7 +427,7 @@ export default function RemindersTab({
               : 'אין כרגע תזכורות בקטגוריה הנבחרת.'}
           </p>
           
-          {canCreateReminders && (
+          <Protect permId="reminders_create">
             <button
               onClick={(e) => onAddReminder(undefined, e)}
               className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition"
@@ -446,7 +435,7 @@ export default function RemindersTab({
               <Plus className="w-4 h-4" />
               צור תזכורת חדשה
             </button>
-          )}
+          </Protect>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -470,14 +459,15 @@ export default function RemindersTab({
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
+                      <Protect permId="reminders_edit">
                       <button
                         onClick={(e) => handleToggleComplete(reminder, e)}
-                        disabled={isActionLoading || !canEditReminders}
+                        disabled={isActionLoading}
                         className={`p-1.5 rounded-lg border transition ${
                           reminder.is_completed
                             ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
                             : 'bg-white text-slate-300 border-slate-300 hover:border-emerald-500 hover:text-emerald-500'
-                        } ${!canEditReminders ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        }`}
                         title={reminder.is_completed ? 'סמן כלא הושלם' : 'סמן כהושלם'}
                       >
                         {isActionLoading ? (
@@ -486,6 +476,7 @@ export default function RemindersTab({
                           <Check className="w-4 h-4 stroke-[3]" />
                         )}
                       </button>
+                      </Protect>
 
                       <h3
                         className={`text-sm font-bold text-slate-800 leading-tight ${
@@ -527,7 +518,7 @@ export default function RemindersTab({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {canEditReminders && (
+                    <Protect permId="reminders_edit">
                       <button
                         onClick={(e) => onEditReminder(reminder, e)}
                         className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
@@ -535,9 +526,9 @@ export default function RemindersTab({
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    </Protect>
 
-                    {canDeleteReminders && (
+                    <Protect permId="reminders_delete">
                       <button
                         onClick={(e) => handleDeleteReminder(reminder, e)}
                         disabled={isActionLoading}
@@ -546,7 +537,7 @@ export default function RemindersTab({
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    </Protect>
                   </div>
                 </div>
               </div>

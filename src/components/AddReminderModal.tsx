@@ -10,13 +10,17 @@ import {
 } from 'lucide-react';
 
 import { logActivity } from '@/lib/logger'; 
+import { toast } from '@/components/Toaster';
+import type { Reminder, ReminderAttachment } from '@/types/donor';
+
+type DonorOption = { id: string; first_name_he: string | null; last_name_he: string | null };
 
 interface AddReminderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   preselectedDonorId?: string | null;
-  editingReminder?: any | null;
+  editingReminder?: Reminder | null;
 }
 
 export default function AddReminderModal({
@@ -30,61 +34,45 @@ export default function AddReminderModal({
   
   const [loading, setLoading] = useState(false);
   const [uploadingText, setUploadingText] = useState('');
-  const [donors, setDonors] = useState<any[]>([]);
+  const [donors, setDonors] = useState<DonorOption[]>([]);
 
-  // שדות הטופס
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [gregorianDate, setGregorianDate] = useState('');
-  const [hebrewDate, setHebrewDate] = useState('');
-  const [donorId, setDonorId] = useState<string>('');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState('yearly');
-  const [notifyEmail, setNotifyEmail] = useState(false);
+  // שדות הטופס – מאותחלים מהתזכורת לעריכה (הקומפוננטה נטענת מחדש בכל פתיחה)
+  const [title, setTitle] = useState(editingReminder?.title || '');
+  const [description, setDescription] = useState(editingReminder?.description || '');
+  const [gregorianDate, setGregorianDate] = useState(
+    editingReminder
+      ? editingReminder.gregorian_date?.split('T')[0] || ''
+      : new Date().toISOString().split('T')[0]
+  );
+  const [hebrewDate, setHebrewDate] = useState(editingReminder?.hebrew_date || '');
+  const [donorId, setDonorId] = useState<string>(
+    editingReminder ? editingReminder.donor_id || '' : preselectedDonorId || ''
+  );
+  const [isRecurring, setIsRecurring] = useState(editingReminder?.is_recurring || false);
+  const [recurringType, setRecurringType] = useState(editingReminder?.recurring_type || 'yearly');
+  const [notifyEmail, setNotifyEmail] = useState(editingReminder?.notify_email || false);
 
   // ניהול קבצים
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<ReminderAttachment[]>(
+    editingReminder?.attachments || []
+  );
 
   useEffect(() => {
-    if (isOpen) {
-      fetchDonors();
-      
-      if (editingReminder) {
-        setTitle(editingReminder.title || '');
-        setDescription(editingReminder.description || '');
-        setGregorianDate(editingReminder.gregorian_date ? editingReminder.gregorian_date.split('T')[0] : '');
-        setHebrewDate(editingReminder.hebrew_date || '');
-        setDonorId(editingReminder.donor_id || '');
-        setIsRecurring(editingReminder.is_recurring || false);
-        setRecurringType(editingReminder.recurring_type || 'yearly');
-        setNotifyEmail(editingReminder.notify_email || false);
-        setExistingAttachments(editingReminder.attachments || []);
-        setNewFiles([]);
-      } else {
-        setTitle('');
-        setDescription('');
-        setGregorianDate(new Date().toISOString().split('T')[0]);
-        setHebrewDate('');
-        setDonorId(preselectedDonorId || '');
-        setIsRecurring(false);
-        setRecurringType('yearly');
-        setNotifyEmail(false);
-        setExistingAttachments([]);
-        setNewFiles([]);
-      }
-    }
-  }, [isOpen, editingReminder, preselectedDonorId]);
-
-  const fetchDonors = async () => {
-    const { data } = await supabase
+    if (!isOpen) return;
+    let active = true;
+    supabase
       .from('donors')
       .select('id, first_name_he, last_name_he')
-      .order('created_at', { ascending: false });
-      
-    if (data) setDonors(data);
-  };
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (active && data) setDonors(data as DonorOption[]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   // פונקציית עזר לשליפת שם התורם עבור הלוגים (עם הסוגריים המתוקנים)
   const getDonorNameForLog = (selectedDonorId: string) => {
@@ -113,14 +101,14 @@ export default function AddReminderModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !gregorianDate) {
-      alert('נא למלא נושא ותאריך לזכרון (לועזי).');
+      toast.warning('נא למלא נושא ותאריך לזכרון (לועזי).');
       return;
     }
 
     setLoading(true);
 
     try {
-      let finalAttachments = [...existingAttachments];
+      const finalAttachments = [...existingAttachments];
       const currentDonorName = getDonorNameForLog(donorId);
 
       // העלאת קבצים חדשים (אם יש)
@@ -201,9 +189,10 @@ export default function AddReminderModal({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('שגיאה בשמירת התזכורת:', err);
-      alert(`שגיאה בשמירת התזכורת: ${err.message || 'שגיאת שרת'}`);
+      const message = err instanceof Error ? err.message : (err as { message?: string })?.message;
+      toast.error(`שגיאה בשמירת התזכורת: ${message || 'שגיאת שרת'}`);
     } finally {
       setLoading(false);
       setUploadingText('');

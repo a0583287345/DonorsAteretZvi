@@ -5,8 +5,9 @@ import React from 'react';
 import { Donor } from '@/types/donor';
 import { supabase } from '@/lib/supabase';
 import { openSecureFile } from '@/lib/storage';
-import { Donation, Attachment } from '@/types/donor';
+import { Donation, Attachment, SpecialDate } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect, LockedText } from '@/components/Protect';
 
 import {
   Phone,
@@ -31,6 +32,7 @@ import {
   Bell,
   CalendarClock
 } from 'lucide-react';
+import { toast } from '@/components/Toaster';
 
 /* =========================================================
    סוג תרומה מקומי
@@ -263,6 +265,16 @@ function InfoItem({
    Section Title
 ========================================================= */
 
+/** אזור שהמשתמש לא מורשה לראות, כשההרשאה מוגדרת "חסום" */
+function LockedSection({ title, icon, className = '' }: { title: string; icon: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-xl bg-slate-50 border border-dashed border-slate-200 p-3 ${className}`}>
+      <SectionTitle icon={icon}>{title}</SectionTitle>
+      <LockedText />
+    </div>
+  );
+}
+
 function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-2">
@@ -285,7 +297,16 @@ export default function DonorCard({
   onViewReminder,
   onOpenReminderById,
 }: DonorCardProps) {
-  const { hasPermission, loadingPerms } = usePermissions();
+  const { hasPermission, access, loadingPerms } = usePermissions();
+
+  // מצב תצוגה (מותר / חסום / מוסתר) לאזורים בכרטיס
+  const contactAccess = access('donors_view_contact');
+  const remindersAccess = access('reminders_view');
+  const donationsAccess = access('donations_view');
+  const amountAccess = access('donations_view_amount');
+  const documentsAccess = access('documents_view');
+  const createDonationAccess = access('donations_create');
+  const createReminderAccess = access('reminders_create');
 
   /*
    * הרשאות
@@ -295,11 +316,9 @@ export default function DonorCard({
   const canViewDonations = !loadingPerms && hasPermission('donations_view');
   const canViewDonationAmount = !loadingPerms && hasPermission('donations_view_amount');
   const canViewDocuments = !loadingPerms && hasPermission('documents_view');
-  const canCreateDonation = !loadingPerms && hasPermission('donations_create');
   
   // הרשאות לתזכורות
   const canViewReminders = !loadingPerms && hasPermission('reminders_view');
-  const canCreateReminder = !loadingPerms && hasPermission('reminders_create');
 
   const [showNavOptions, setShowNavOptions] = useState(false);
 
@@ -370,14 +389,14 @@ export default function DonorCard({
           return;
         }
 
-        const normalizedDonations = (data || []).map((donation: any) => ({
+        const normalizedDonations = ((data || []) as unknown as Donation[]).map((donation) => ({
           ...donation,
           amount: canViewDonationAmount ? Number(donation.amount) || 0 : 0,
         }));
 
         setDonations(normalizedDonations);
         setDonationsError(false);
-      } catch (error) {
+      } catch {
         if (!cancelled) setDonationsError(true);
       } finally {
         if (!cancelled) setDonationsLoading(false);
@@ -424,7 +443,7 @@ export default function DonorCard({
 
         setReminders(data || []);
         setRemindersError(false);
-      } catch (error) {
+      } catch {
         if (!cancelled) setRemindersError(true);
       } finally {
         if (!cancelled) setRemindersLoading(false);
@@ -508,6 +527,9 @@ export default function DonorCard({
         
         {/* CONTACT + ADDRESS */}
         <div className="grid grid-cols-2 gap-4">
+          {contactAccess === 'locked' && (
+            <LockedSection className="col-span-2" icon={<User className="w-3.5 h-3.5" />} title="פרטי קשר וכתובת" />
+          )}
           {canViewContact && (
             <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
               <SectionTitle icon={<User className="w-3.5 h-3.5" />}>פרטי קשר</SectionTitle>
@@ -536,6 +558,7 @@ export default function DonorCard({
             </div>
           )}
 
+          {canViewContact && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
             <SectionTitle icon={<MapPin className="w-3.5 h-3.5" />}>כתובת</SectionTitle>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -551,7 +574,7 @@ export default function DonorCard({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!canViewDonor) return alert('אין לך הרשאה לצפות בפרטי התורם!');
+                    if (!canViewDonor) return toast.denied('אין לך הרשאה לצפות בפרטי התורם!');
                     setShowNavOptions((prev) => !prev);
                   }}
                   className="text-[10px] px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 flex items-center gap-1"
@@ -569,6 +592,7 @@ export default function DonorCard({
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* DATES + ADDITIONAL DETAILS */}
@@ -606,6 +630,9 @@ export default function DonorCard({
         )}
 
         {/* REMINDERS AREA - אזור התזכורות החדש */}
+        {remindersAccess === 'locked' && (
+          <LockedSection icon={<Bell className="w-3.5 h-3.5 text-blue-500" />} title="תזכורות משויכות" />
+        )}
         {canViewReminders && (
           <div className="rounded-xl border border-blue-100 overflow-hidden">
             <div className="px-4 py-2.5 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between">
@@ -695,6 +722,9 @@ export default function DonorCard({
         )}
 
         {/* DONATIONS */}
+        {donationsAccess === 'locked' && (
+          <LockedSection icon={<CreditCard className="w-3.5 h-3.5" />} title="תרומות משויכות" />
+        )}
         {canViewDonations && (
           <div className="rounded-xl border border-slate-100 overflow-hidden">
             <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
@@ -741,6 +771,7 @@ export default function DonorCard({
                                 {Number(donation.amount).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {symbol}
                               </div>
                             )}
+                            {amountAccess === 'locked' && <LockedText text="סכום: אין הרשאה" />}
                             <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
                               אמצעי תשלום: <span className="text-slate-700">{paymentMethodLabel}</span>
                             </div>
@@ -793,6 +824,9 @@ export default function DonorCard({
         )}
 
         {/* FILES */}
+        {documentsAccess === 'locked' && donor.files && donor.files.length > 0 && (
+          <LockedSection icon={<Paperclip className="w-3.5 h-3.5" />} title="קבצים ומסמכים" />
+        )}
         {canViewDocuments && donor.files && donor.files.length > 0 && (
           <div className="rounded-xl border border-slate-100 overflow-hidden">
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
@@ -816,7 +850,7 @@ export default function DonorCard({
               <SectionTitle icon={<Calendar className="w-3.5 h-3.5" />}>תאריכים מיוחדים</SectionTitle>
             </div>
             <div className="p-2 grid grid-cols-2 gap-2">
-              {donor.special_dates.map((sd: any, index: number) => (
+              {donor.special_dates.map((sd: SpecialDate, index: number) => (
                 <div key={index} className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-medium text-slate-700">{sd.title}</span>
@@ -841,9 +875,10 @@ export default function DonorCard({
       </div>
 
       {/* FOOTER - כפתורי פעולות */}
-      {(canCreateDonation || canCreateReminder) && (
+      {((onAddDonation && createDonationAccess !== 'hidden') || (onAddReminder && createReminderAccess !== 'hidden')) && (
         <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 grid grid-cols-2 gap-3">
-          {onAddDonation && canCreateDonation && (
+          {onAddDonation && (
+            <Protect permId="donations_create" className="w-full [&>span>*]:w-full">
             <button
               type="button"
               onClick={(e) => {
@@ -854,9 +889,11 @@ export default function DonorCard({
             >
               <PlusCircle className="w-3.5 h-3.5" /> רישום תרומה
             </button>
+            </Protect>
           )}
 
-          {onAddReminder && canCreateReminder && (
+          {onAddReminder && (
+            <Protect permId="reminders_create" className="w-full [&>span>*]:w-full">
             <button
               type="button"
               onClick={(e) => {
@@ -869,6 +906,7 @@ export default function DonorCard({
             >
               <Bell className="w-3.5 h-3.5" /> הוספת תזכורת
             </button>
+            </Protect>
           )}
         </div>
       )}

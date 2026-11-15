@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Donor } from '@/types/donor';
 import * as XLSX from 'xlsx';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect, LockedText } from '@/components/Protect';
 import {
   Search,
   UserPlus,
@@ -40,8 +41,6 @@ type NavigationOption =
 export default function DonorsTab({
   donors,
   loading,
-  activeRecurring: _activeRecurring,
-  yissacharZevulunCount: _yissacharZevulunCount,
   onCreateDonor,
   onViewDonor,
   onAddDonation,
@@ -52,8 +51,14 @@ export default function DonorsTab({
 
   const {
     hasPermission,
+    access,
     loadingPerms,
   } = usePermissions();
+
+  // פרטי התקשרות: מותר / חסום ("אין הרשאה") / מוסתר (העמודות לא מוצגות)
+  const contactAccess = access('donors_view_contact');
+  const showContactColumns = contactAccess !== 'hidden';
+  const canViewContact = contactAccess === 'allowed';
 
   /* ============================================================
      חיפוש כללי
@@ -439,6 +444,7 @@ export default function DonorsTab({
             donor.last_name_en || ''
           }`.trim(),
 
+        ...(canViewContact ? {
         'טלפון 1':
           donor.phone_1 || '',
 
@@ -459,6 +465,7 @@ export default function DonorsTab({
 
         'מספר בית':
           donor.house_number || '',
+        } : {}),
 
         'הוראת קבע':
           donor.is_recurring
@@ -590,7 +597,7 @@ export default function DonorsTab({
         </div>
 
         <div className="flex items-center gap-2">
-          {hasPermission('donors_export') && (
+          <Protect permId="donors_export">
             <button
               onClick={exportToExcel}
               disabled={filteredDonors.length === 0}
@@ -615,8 +622,9 @@ export default function DonorsTab({
               <Download className="w-4 h-4" />
               ייצוא לאקסל
             </button>
-          )}
+          </Protect>
 
+          <Protect permId="donors_create">
           <button
             onClick={onCreateDonor}
             className="
@@ -638,6 +646,7 @@ export default function DonorsTab({
             <UserPlus className="w-4 h-4" />
             הוספת תורם חדש
           </button>
+          </Protect>
         </div>
       </div>
 
@@ -1049,7 +1058,7 @@ export default function DonorsTab({
               text-xs
             "
           >
-            הו"ק: {filteredRecurringCount}
+            הו&quot;ק: {filteredRecurringCount}
           </span>
 
           <span
@@ -1125,6 +1134,7 @@ export default function DonorsTab({
                     שם התורם
                   </th>
 
+                  {showContactColumns && (<>
                   <th className="px-2.5 py-3 font-medium whitespace-nowrap">
                     טלפונים
                   </th>
@@ -1136,13 +1146,14 @@ export default function DonorsTab({
                   <th className="px-2.5 py-3 font-medium whitespace-nowrap">
                     כתובת
                   </th>
+                  </>)}
 
                   <th className="px-2.5 py-3 font-medium whitespace-nowrap">
                     איש קשר
                   </th>
 
                   <th className="px-2.5 py-3 font-medium whitespace-nowrap">
-                    הו"ק
+                    הו&quot;ק
                   </th>
 
                   <th className="px-2.5 py-3 font-medium whitespace-nowrap">
@@ -1219,6 +1230,11 @@ export default function DonorsTab({
                         </button>
                       </td>
 
+                      {showContactColumns && (!canViewContact ? (
+                        <td colSpan={3} className="px-2.5 py-3 text-center">
+                          <LockedText />
+                        </td>
+                      ) : (<>
                       <td className="px-2.5 py-3 min-w-[115px]">
                         <div className="flex flex-col gap-1">
                           {donor.phone_1 && (
@@ -1353,6 +1369,7 @@ export default function DonorsTab({
                           </span>
                         )}
                       </td>
+                      </>))}
 
                       <td className="px-2.5 py-3 min-w-[125px]">
                         {donor.connected_contact ? (
@@ -1394,7 +1411,7 @@ export default function DonorsTab({
                               whitespace-nowrap
                             "
                           >
-                            הו"ק
+                            הו&quot;ק
                           </span>
                         ) : (
                           <span className="text-slate-400">
@@ -1469,6 +1486,7 @@ export default function DonorsTab({
                       </td>
 
                       <td className="px-2.5 py-3 whitespace-nowrap">
+                        <Protect permId="donations_create">
                         <button
                           type="button"
                           onClick={(e) =>
@@ -1493,6 +1511,7 @@ export default function DonorsTab({
                         >
                           + תרומה
                         </button>
+                        </Protect>
                       </td>
                     </tr>
                   );

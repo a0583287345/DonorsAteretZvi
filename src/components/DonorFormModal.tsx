@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import type { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect, LockedText } from '@/components/Protect';
 import { logActivity } from '@/lib/logger';
 
 import {
@@ -21,12 +23,13 @@ import {
   Trash2,
   Calendar,
 } from 'lucide-react';
+import { toast } from '@/components/Toaster';
 
 interface DonorFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  donorToEdit?: any | null;
+  donorToEdit?: Donor | null;
 }
 
 interface DonorFormData {
@@ -83,16 +86,20 @@ export default function DonorFormModal({
 
   const {
     hasPermission,
+    access,
     loadingPerms,
   } = usePermissions();
 
   const isEditMode = Boolean(donorToEdit?.id);
 
+  // פרטי התקשרות וכתובת: בעריכה – לפי ההרשאות; בתורם חדש – תמיד אפשר למלא
+  const contactViewAccess = isEditMode ? access('donors_view_contact') : 'allowed';
+  const canEditContact = !isEditMode || hasPermission('donors_edit_contact');
+
   // חשוב:
   // ההרשאה במסד הנתונים נקראת donors_create
   const canCreate = hasPermission('donors_create');
   const canEdit = hasPermission('donors_edit');
-  const canDelete = hasPermission('donors_delete');
 
   const canSave = isEditMode
     ? canEdit
@@ -252,13 +259,13 @@ export default function DonorFormModal({
 
     if (isEditMode) {
       if (!hasPermission('donors_edit')) {
-        alert('אין לך הרשאה לערוך תורם.');
+        toast.denied('אין לך הרשאה לערוך תורם.');
         return;
       }
     } else {
       // ההרשאה הנכונה היא donors_create
       if (!hasPermission('donors_create')) {
-        alert('אין לך הרשאה ליצור תורם חדש.');
+        toast.denied('אין לך הרשאה ליצור תורם חדש.');
         return;
       }
     }
@@ -271,7 +278,7 @@ export default function DonorFormModal({
       !formData.first_name_he.trim() &&
       !formData.last_name_he.trim()
     ) {
-      alert(
+      toast.warning(
         'נא להזין לפחות שם פרטי או שם משפחה בעברית'
       );
 
@@ -360,7 +367,7 @@ export default function DonorFormModal({
       if (donorToEdit?.id) {
         // בדיקת הרשאה נוספת ממש לפני UPDATE
         if (!hasPermission('donors_edit')) {
-          alert('אין לך הרשאה לערוך תורם.');
+          toast.denied('אין לך הרשאה לערוך תורם.');
           return;
         }
 
@@ -391,7 +398,7 @@ export default function DonorFormModal({
       else {
         // בדיקת הרשאה נוספת ממש לפני INSERT
         if (!hasPermission('donors_create')) {
-          alert(
+          toast.denied(
             'אין לך הרשאה ליצור תורם חדש.'
           );
 
@@ -427,7 +434,7 @@ export default function DonorFormModal({
           error
         );
 
-        alert(
+        toast.error(
           'שגיאה בשמירת נתוני התורם:\n\n' +
             error.message
         );
@@ -443,7 +450,7 @@ export default function DonorFormModal({
         error
       );
 
-      alert(
+      toast.error(
         'אירעה שגיאה בלתי צפויה בעת שמירת התורם.'
       );
     } finally {
@@ -463,7 +470,7 @@ export default function DonorFormModal({
     // ===================================================
 
     if (!hasPermission('donors_delete')) {
-      alert('אין לך הרשאה למחוק תורם.');
+      toast.denied('אין לך הרשאה למחוק תורם.');
       return;
     }
 
@@ -498,7 +505,7 @@ export default function DonorFormModal({
         countError
       );
 
-      alert(
+      toast.error(
         'לא ניתן לבדוק את מספר התרומות של התורם.'
       );
 
@@ -545,7 +552,7 @@ export default function DonorFormModal({
     try {
       // בדיקת הרשאה נוספת ממש לפני DELETE
       if (!hasPermission('donors_delete')) {
-        alert(
+        toast.denied(
           'אין לך הרשאה למחוק תורם.'
         );
 
@@ -567,7 +574,7 @@ export default function DonorFormModal({
           error
         );
 
-        alert(
+        toast.error(
           'לא ניתן למחוק את התורם.\n\n' +
             error.message
         );
@@ -593,7 +600,7 @@ export default function DonorFormModal({
         error
       );
 
-      alert(
+      toast.error(
         'אירעה שגיאה בלתי צפויה בעת מחיקת התורם.'
       );
     } finally {
@@ -1129,6 +1136,20 @@ export default function DonorFormModal({
             {/* פרטי התקשרות */}
             {/* --------------------------------------------- */}
 
+            {contactViewAccess === 'locked' && (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4">
+                <LockedText text="פרטי התקשרות וכתובת: אין הרשאה" />
+              </div>
+            )}
+
+            {contactViewAccess === 'allowed' && (
+            <fieldset disabled={!canEditContact} className="contents">
+            {!canEditContact && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <LockedText text="אין לך הרשאה לערוך פרטי התקשרות – השדות לקריאה בלבד" />
+              </div>
+            )}
+
             <section className="space-y-3">
               <h3
                 className="
@@ -1478,6 +1499,9 @@ export default function DonorFormModal({
               </div>
             </section>
 
+            </fieldset>
+            )}
+
             {/* --------------------------------------------- */}
             {/* ניהול */}
             {/* --------------------------------------------- */}
@@ -1593,7 +1617,7 @@ export default function DonorFormModal({
                   "
                 >
                   <Heart className="w-4 h-4 text-emerald-600" />
-                  תורם בהוראת קבע פעילה (הו"ק)
+                  תורם בהוראת קבע פעילה (הו&quot;ק)
                 </span>
               </label>
 
@@ -1765,7 +1789,8 @@ export default function DonorFormModal({
         >
           {/* מחיקה */}
 
-          {donorToEdit && canDelete ? (
+          {donorToEdit ? (
+            <div><Protect permId="donors_delete">
             <button
               type="button"
               onClick={
@@ -1807,6 +1832,7 @@ export default function DonorFormModal({
                 </>
               )}
             </button>
+            </Protect></div>
           ) : (
             <div />
           )}

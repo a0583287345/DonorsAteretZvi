@@ -7,6 +7,7 @@ import { ShieldAlert, Users, Key, ArrowRight, Loader2, History } from 'lucide-re
 import UsersTab from './UsersTab';
 import RolesTab from './RolesTab';
 import { AuditLogTab } from './AuditLogTab';
+import { toast } from '@/components/Toaster';
 
 export default function AdminPage() {
   const { profile, hasPermission, loading } = useAuth();
@@ -18,10 +19,10 @@ export default function AdminPage() {
     if (loading) return;
 
     if (!profile || !hasPermission('manage_users')) {
-      alert("אין לך הרשאה לגשת לפאנל הניהול.");
+      toast.denied("אין לך הרשאה לגשת לפאנל הניהול.");
       router.push('/');
     }
-  }, [loading, profile, router]);
+  }, [loading, profile, router, hasPermission]);
 
   if (loading || !profile) {
     return (

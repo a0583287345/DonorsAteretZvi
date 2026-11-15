@@ -21,6 +21,7 @@ import {
 
 import { supabase } from '@/lib/supabase';
 import { openSecureFile } from '@/lib/storage';
+import { toast } from '@/components/Toaster';
 
 interface Donation {
   id: string;
@@ -79,14 +80,17 @@ export default function DonationCardModal({
   const { hasPermission } = usePermissions();
 
   useEffect(() => {
-    if (!isOpen || !donation?.id) {
+    const donationId = donation?.id;
+    if (!isOpen || !donationId) {
       return;
     }
 
-    fetchDonationDocuments();
-  }, [isOpen, donation?.id]);
+    let cancelled = false;
 
-  async function fetchDonationDocuments() {
+    async function fetchDonationDocuments(id: string) {
+    // מחכים רגע אחד כדי לא לעדכן state באופן סינכרוני בתוך ה-effect
+    await Promise.resolve();
+    if (cancelled) return;
     setLoadingDocuments(true);
     setDocumentsError(null);
 
@@ -96,8 +100,10 @@ export default function DonationCardModal({
         .select(
           'id, donor_id, donation_id, file_name, file_url, file_type, created_at'
         )
-        .eq('donation_id', donation.id)
+        .eq('donation_id', id)
         .order('created_at', { ascending: false });
+
+      if (cancelled) return;
 
       if (error) {
         console.error('Error loading donation documents:', error);
@@ -112,9 +118,15 @@ export default function DonationCardModal({
       setDocumentsError('אירעה שגיאה בטעינת המסמכים');
       setDocuments([]);
     } finally {
-      setLoadingDocuments(false);
+      if (!cancelled) setLoadingDocuments(false);
     }
-  }
+    }
+
+    void fetchDonationDocuments(donationId);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, donation?.id]);
 
   /*
    * =========================================================
@@ -212,7 +224,7 @@ export default function DonationCardModal({
 
   async function handleDelete() {
     if (!hasPermission('donations_delete')) {
-      alert('אין לך הרשאה למחוק תרומות!');
+      toast.denied('אין לך הרשאה למחוק תרומות!');
       return;
     }
 
@@ -234,7 +246,7 @@ export default function DonationCardModal({
 
       if (error) {
         console.error('Error deleting donation:', error);
-        alert(`אירעה שגיאה במחיקת התרומה:\n${error.message}`);
+        toast.error(`אירעה שגיאה במחיקת התרומה:\n${error.message}`);
         return;
       }
 
@@ -248,7 +260,7 @@ export default function DonationCardModal({
       onClose();
     } catch (error) {
       console.error('Unexpected error deleting donation:', error);
-      alert('אירעה שגיאה לא צפויה במחיקת התרומה.');
+      toast.error('אירעה שגיאה לא צפויה במחיקת התרומה.');
     } finally {
       setIsProcessing(false);
     }
@@ -256,7 +268,7 @@ export default function DonationCardModal({
 
   function handleEditClick() {
     if (!hasPermission('donations_edit')) {
-      alert('אין לך הרשאה לערוך תרומות!');
+      toast.denied('אין לך הרשאה לערוך תרומות!');
       return;
     }
 

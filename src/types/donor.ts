@@ -61,3 +61,25 @@ export interface ExtendedDonor extends Donor {
   donations?: Donation[];
   files?: Attachment[];
 }
+export interface ReminderAttachment {
+  name: string;
+  url: string;
+  path?: string;
+  uploaded_at?: string;
+}
+
+export interface Reminder {
+  id: string;
+  donor_id: string | null;
+  title: string;
+  description?: string | null;
+  gregorian_date: string;
+  hebrew_date?: string | null;
+  is_recurring?: boolean | null;
+  recurring_type?: string | null;
+  notify_email?: boolean | null;
+  is_completed?: boolean | null;
+  attachments?: ReminderAttachment[] | null;
+  created_at: string | null;
+  created_by?: string | null;
+}

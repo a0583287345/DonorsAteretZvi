@@ -16,13 +16,15 @@ import {
 } from 'next/navigation';
 
 import { supabase } from '@/lib/supabase';
-import { Donor, Donation } from '@/types/donor';
+import { Donor, Donation, Reminder } from '@/types/donor';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
+type OnlineUser = { user_id: string; nickname: string; role: string };
 
 // --- הייבוא של ה-Context שלך ---
 import { useAuth } from '@/components/AuthContext';
 
-// --- הרשאות ---
-import { usePermissions } from '@/hooks/usePermissions';
+import { Protect } from '@/components/Protect';
 
 import DonorFormModal from '@/components/DonorFormModal';
 import DonationFormModal from '@/components/DonationFormModal';
@@ -46,6 +48,7 @@ import {
   Radio,
   ShieldAlert,
 } from 'lucide-react';
+import { toast } from '@/components/Toaster';
 
 /* ============================================================
    תוכן הדף - הופרד כדי שנוכל לעטוף אותו ב-Suspense
@@ -62,20 +65,20 @@ function DashboardContent() {
     user,
     profile,
     loading: authLoading,
+    hasPermission,
+    requirePermission,
   } = useAuth();
+  // ההרשאות נטענות יחד עם הפרופיל
+  const loadingPerms = authLoading;
 
   /* ============================================================
      הרשאות
   ============================================================ */
-  const {
-    hasPermission,
-    loadingPerms,
-  } = usePermissions();
 
   const isAdmin = hasPermission('manage_users');
   
   // בדיקת הרשאה לצפייה בלשונית תזכורות (מותאם למבנה ההרשאות במערכת שלך)
-  const canViewReminders = hasPermission('reminders_view') || isAdmin;
+  const canViewReminders = hasPermission('reminders_view');
 
   const currentUserNickname =
     profile?.full_name ||
@@ -89,7 +92,7 @@ function DashboardContent() {
   /* ============================================================
      משתמשים מחוברים
   ============================================================ */
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
   /* ============================================================
      נתונים
@@ -100,8 +103,6 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [donationsLoading, setDonationsLoading] = useState(false);
 
-  const [totalsByCurrency, setTotalsByCurrency] =
-    useState<Record<string, number>>({});
 
   /*
    * מונע טעינה כפולה / לולאת רינדורים
@@ -118,16 +119,12 @@ function DashboardContent() {
       ? 'reminders'
       : 'donors';
 
-  const [activeTab, setActiveTab] =
-    useState<'donors' | 'donations' | 'reminders'>(
-      currentTabFromUrl
-    );
+  // הלשונית הפעילה נגזרת מהכתובת (?tab=), כך שהיא תמיד מסונכרנת
+  const activeTab = currentTabFromUrl;
 
   const handleTabChange = useCallback(
     (tab: 'donors' | 'donations' | 'reminders') => {
       if (tab === 'reminders' && !canViewReminders) return;
-      
-      setActiveTab(tab);
 
       const params = new URLSearchParams(
         searchParams.toString()
@@ -147,22 +144,6 @@ function DashboardContent() {
     ]
   );
 
-  useEffect(() => {
-    const tabFromUrl = searchParams.get('tab');
-
-    if (tabFromUrl === 'reminders' && !canViewReminders) {
-      setActiveTab('donors');
-      return;
-    }
-
-    if (
-      tabFromUrl === 'donations' ||
-      tabFromUrl === 'donors' ||
-      tabFromUrl === 'reminders'
-    ) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [searchParams, canViewReminders]);
 
   /* ============================================================
      תורם - צפייה
@@ -219,7 +200,7 @@ function DashboardContent() {
   const [
     selectedReminderToEdit,
     setSelectedReminderToEdit,
-  ] = useState<any | null>(null);
+  ] = useState<Reminder | null>(null);
 
   /* ============================================================
      כרטיס תרומה
@@ -234,7 +215,7 @@ function DashboardContent() {
      טעינת נתונים ומעקב חי אחרי משתמשים
   ============================================================ */
   useEffect(() => {
-    let presenceChannel: any;
+    let presenceChannel: RealtimeChannel | null = null;
 
     async function initSystem() {
       if (authLoading || loadingPerms) {
@@ -255,15 +236,16 @@ function DashboardContent() {
         hasFetchedData.current = true;
       }
 
-      presenceChannel = supabase.channel('online-users');
+      const channel = supabase.channel('online-users');
+      presenceChannel = channel;
 
-      presenceChannel
+      channel
         .on('presence', { event: 'sync' }, () => {
-          const newState = presenceChannel.presenceState();
-          const usersMap = new Map();
+          const newState = channel.presenceState<OnlineUser>();
+          const usersMap = new Map<string, OnlineUser>();
 
           for (const key in newState) {
-            const presences = newState[key] as any[];
+            const presences = newState[key];
             if (presences.length > 0) {
               usersMap.set(presences[0].user_id, presences[0]);
             }
@@ -273,7 +255,7 @@ function DashboardContent() {
         })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
-            await presenceChannel.track({
+            await channel.track({
               user_id: user.id,
               nickname: currentUserNickname,
               role: currentUserRole,
@@ -338,24 +320,9 @@ function DashboardContent() {
     } else if (donationsData) {
       const donationData = donationsData as Donation[];
       setDonations(donationData);
-      calculateTotals(donationData);
     }
 
     setLoading(false);
-  }
-
-  /* ============================================================
-     חישוב סכומים
-  ============================================================ */
-  function calculateTotals(data: Donation[]) {
-    const totals: Record<string, number> = {};
-
-    data.forEach((item) => {
-      const currency = item.currency || 'ILS';
-      totals[currency] = (totals[currency] || 0) + Number(item.amount || 0);
-    });
-
-    setTotalsByCurrency(totals);
   }
 
   /* ============================================================
@@ -374,7 +341,6 @@ function DashboardContent() {
     } else if (data) {
       const donationData = data as Donation[];
       setDonations(donationData);
-      calculateTotals(donationData);
     }
 
     setDonationsLoading(false);
@@ -484,7 +450,7 @@ function DashboardContent() {
   ============================================================ */
   function handleOpenAddReminder(donorId?: string, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    if (!canViewReminders) return;
+    if (!requirePermission('reminders_create')) return;
 
     setSelectedReminderToEdit(null);
     setSelectedDonation(null);
@@ -500,9 +466,9 @@ function DashboardContent() {
   /* ============================================================
      עריכת תזכורת
   ============================================================ */
-  function handleOpenEditReminder(reminder: any, e?: React.MouseEvent) {
+  function handleOpenEditReminder(reminder: Reminder, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    if (!canViewReminders) return;
+    if (!requirePermission('reminders_edit')) return;
 
     setSelectedDonation(null);
     setIsDonorModalOpen(false);
@@ -552,19 +518,19 @@ function DashboardContent() {
 
       if (error) {
         console.error('שגיאה בטעינת התרומה:', error);
-        alert('לא ניתן לטעון את פרטי התרומה.');
+        toast.error('לא ניתן לטעון את פרטי התרומה.');
         return;
       }
 
       if (!data) {
-        alert('התרומה לא נמצאה.');
+        toast.error('התרומה לא נמצאה.');
         return;
       }
 
       handleOpenDonationCard(data as Donation, e);
     } catch (error) {
       console.error('שגיאה בלתי צפויה בטעינת תרומה:', error);
-      alert('אירעה שגיאה בטעינת פרטי התרומה.');
+      toast.error('אירעה שגיאה בטעינת פרטי התרומה.');
     }
   }
 
@@ -628,7 +594,7 @@ function DashboardContent() {
               מערכת ניהול תורמים
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              ניהול מעקב תרומות, הו"ק עבור ישיבת עטרת צבי אשדוד
+              ניהול מעקב תרומות, הו&quot;ק עבור ישיבת עטרת צבי אשדוד
             </p>
           </div>
 
@@ -655,7 +621,7 @@ function DashboardContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {isAdmin && (
+              <Protect permId="manage_users">
                 <button
                   onClick={() => router.push('/admin')}
                   className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-bold rounded-xl border border-purple-200 transition shadow-sm"
@@ -663,7 +629,7 @@ function DashboardContent() {
                   <Settings className="w-4 h-4 text-purple-600" />
                   פאנל ניהול
                 </button>
-              )}
+              </Protect>
 
               <button
                 onClick={handleLogout}
@@ -737,7 +703,7 @@ function DashboardContent() {
                 תרומות
               </button>
 
-              {canViewReminders && (
+              <Protect permId="reminders_view" mode="action">
                 <button
                   onClick={() => handleTabChange('reminders')}
                   className={`
@@ -752,7 +718,7 @@ function DashboardContent() {
                   <Bell className="w-4 h-4" />
                   תזכורות
                 </button>
-              )}
+              </Protect>
             </div>
           </div>
 
@@ -835,7 +801,7 @@ function DashboardContent() {
                   <DonorCard
                     donor={selectedDonorForView}
                     onAddDonation={(e) => handleOpenAddDonation(selectedDonorForView.id, e)}
-                    onAddReminder={canViewReminders ? (e) => handleOpenAddReminder(selectedDonorForView.id, e) : undefined}
+                    onAddReminder={(e) => handleOpenAddReminder(selectedDonorForView.id, e)}
                     onOpenDonationById={handleOpenDonationCardById}
                   />
                 </div>
@@ -885,8 +851,9 @@ function DashboardContent() {
         )}
 
         {/* REMINDER FORM MODAL */}
-        {isReminderModalOpen && canViewReminders && (
+        {isReminderModalOpen && (
           <AddReminderModal
+            key={selectedReminderToEdit?.id ?? `new-${selectedDonorForReminder ?? ''}`}
             isOpen={isReminderModalOpen}
             onClose={handleCloseReminderModal}
             onSuccess={() => {

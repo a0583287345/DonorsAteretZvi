@@ -3,17 +3,35 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { UserPlus, Pencil, KeyRound, Loader2, CheckCircle2, X, Users } from 'lucide-react';
+import { toast } from '@/components/Toaster';
+import { logActivity } from '@/lib/logger';
+
+type UserRow = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role_id: string | null;
+};
+
+type RoleOption = {
+  id: string;
+  name: string;
+};
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'שגיאה לא צפויה';
+}
 
 export default function UsersTab() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   // מצבי מודאל
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
 
   // טפסים
   const [formData, setFormData] = useState({ email: '', password: '', fullName: '' });
@@ -25,24 +43,34 @@ export default function UsersTab() {
   }, []);
 
   const fetchData = async () => {
-    setLoading(true);
-    const { data: usersData } = await supabase.from('user_profiles').select('*, role:roles(name)');
-    const { data: rolesData } = await supabase.from('roles').select('*');
-    
-    if (usersData) setUsers(usersData);
-    if (rolesData) setRoles(rolesData);
-    
+    const [{ data: usersData, error: usersError }, { data: rolesData }] = await Promise.all([
+      supabase.from('user_profiles').select('id, email, full_name, role_id'),
+      supabase.from('roles').select('id, name'),
+    ]);
+
+    if (usersError) toast.error(`שגיאה בטעינת המשתמשים: ${usersError.message}`);
+    if (usersData) setUsers(usersData as UserRow[]);
+    if (rolesData) setRoles(rolesData as RoleOption[]);
+
     setLoading(false);
   };
 
   const updateUserRole = async (userId: string, roleId: string) => {
     const valToUpdate = roleId === "" ? null : roleId;
-    await supabase.from('user_profiles').update({ role_id: valToUpdate }).eq('id', userId);
-    fetchData(); 
+    const { error } = await supabase.from('user_profiles').update({ role_id: valToUpdate }).eq('id', userId);
+    if (error) {
+      toast.error(`שגיאה בעדכון התפקיד: ${error.message}`);
+    } else {
+      const target = users.find((u) => u.id === userId);
+      const roleName = roles.find((r) => r.id === roleId)?.name ?? 'ללא תפקיד';
+      await logActivity('update', 'user_profiles', `שונה תפקיד למשתמש ${target?.full_name || target?.email || userId}: ${roleName}`);
+      toast.success('התפקיד עודכן');
+    }
+    fetchData();
   };
 
   // קריאה מאובטחת ל-API (שולחת את הטוקן של המשתמש המחובר לבדיקת הרשאות בשרת)
-  async function callAdminApi(action: string, payload: any) {
+  async function callAdminApi(action: string, payload: Record<string, string>) {
     setActionLoading(true);
     setFeedbackMsg('');
     try {
@@ -71,8 +99,8 @@ export default function UsersTab() {
         fetchData();
       }, 1500);
 
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       setActionLoading(false);
     }
@@ -94,8 +122,14 @@ export default function UsersTab() {
     if (!selectedUser) return;
     setActionLoading(true);
     
-    await supabase.from('user_profiles').update({ full_name: formData.fullName }).eq('id', selectedUser.id);
-    
+    const { error } = await supabase.from('user_profiles').update({ full_name: formData.fullName }).eq('id', selectedUser.id);
+    if (error) {
+      toast.error(`שגיאה בעדכון השם: ${error.message}`);
+    } else {
+      await logActivity('update', 'user_profiles', `עודכן שם משתמש: ${formData.fullName}`);
+      toast.success('השם עודכן');
+    }
+
     setActionLoading(false);
     closeAllModals();
     fetchData();
@@ -161,7 +195,7 @@ export default function UsersTab() {
                 </td>
                 <td className="px-6 py-4 flex items-center justify-end gap-2 text-left">
                   <button 
-                    onClick={() => { setSelectedUser(u); setFormData({ ...formData, fullName: u.full_name }); setIsEditModalOpen(true); }}
+                    onClick={() => { setSelectedUser(u); setFormData({ ...formData, fullName: u.full_name ?? '' }); setIsEditModalOpen(true); }}
                     className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                     title="ערוך פרטים"
                   >

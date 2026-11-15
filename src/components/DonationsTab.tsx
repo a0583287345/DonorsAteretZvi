@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect, LockedText } from '@/components/Protect';
+import { toast } from '@/components/Toaster';
 import { supabase } from '@/lib/supabase';
 import { openSecureFile } from '@/lib/storage';
 
@@ -165,8 +167,14 @@ export default function DonationsTab({
 
   const {
     hasPermission,
+    access,
     loadingPerms,
   } = usePermissions();
+
+  // סכומים ופרטי התקשרות: מותר / חסום ("אין הרשאה") / מוסתר
+  const amountAccess = access('donations_view_amount');
+  const canViewAmount = amountAccess === 'allowed';
+  const canViewContact = hasPermission('donors_view_contact');
 
   /* ============================================================
      מסמכים של תרומות
@@ -748,7 +756,7 @@ export default function DonationsTab({
     if (
       filteredDonations.length === 0
     ) {
-      alert(
+      toast.info(
         'אין תרומות לייצוא לפי הסינון הנוכחי.'
       );
       return;
@@ -808,13 +816,22 @@ export default function DonationsTab({
         }
       );
 
+    // ללא הרשאה – לא מייצאים פרטי התקשרות / סכומים
+    const hiddenColumns = new Set<string>([
+      ...(canViewContact ? [] : ['טלפון', 'אימייל', 'עיר', 'מדינה']),
+      ...(canViewAmount ? [] : ['סכום']),
+    ]);
+    const keep = headers.map((h) => !hiddenColumns.has(h));
+
     const csv = [
       headers
+        .filter((_, i) => keep[i])
         .map(escapeCsv)
         .join(','),
       ...rows.map(
         (row) =>
           row
+            .filter((_, i) => keep[i])
             .map(escapeCsv)
             .join(',')
       ),
@@ -909,7 +926,7 @@ export default function DonationsTab({
 
         <div className="flex flex-wrap gap-2">
 
-          {hasPermission('donations_export') && (
+          <Protect permId="donations_export">
             <button
               onClick={exportFilteredDonations}
               className="
@@ -935,8 +952,9 @@ export default function DonationsTab({
               {filteredDonations.length > 0 &&
                 ` (${filteredDonations.length})`}
             </button>
-          )}
+          </Protect>
 
+          <Protect permId="donations_create">
           <button
             onClick={() =>
               onAddDonation()
@@ -960,6 +978,7 @@ export default function DonationsTab({
             <PlusCircle className="w-4 h-4" />
             הוספת תרומה חדשה
           </button>
+          </Protect>
 
           <button
             onClick={onRefresh}
@@ -1666,7 +1685,7 @@ export default function DonationsTab({
 
         {/* סה"כ */}
 
-        {Object.entries(
+        {amountAccess !== 'hidden' && Object.entries(
           filteredDonationTotals
         )
           .slice(0, 1)
@@ -1683,7 +1702,7 @@ export default function DonationsTab({
                 "
               >
                 <div className="text-xs text-slate-400">
-                  סה"כ {currency}
+                  סה&quot;כ {currency}
                 </div>
 
                 <div className="text-2xl font-bold text-emerald-600 mt-1">
@@ -1705,7 +1724,7 @@ export default function DonationsTab({
 
         {/* מטבע נוסף - נשמרת התמיכה הקיימת */}
 
-        {Object.entries(
+        {amountAccess !== 'hidden' && Object.entries(
           filteredDonationTotals
         )
           .slice(1, 2)
@@ -1723,7 +1742,7 @@ export default function DonationsTab({
                 "
               >
                 <div className="text-xs text-slate-400">
-                  סה"כ {currency}
+                  סה&quot;כ {currency}
                 </div>
 
                 <div className="text-2xl font-bold text-emerald-600 mt-1">
@@ -1829,9 +1848,11 @@ export default function DonationsTab({
                     תורם
                   </th>
 
+                  {amountAccess !== 'hidden' && (
                   <th className="p-3.5 font-medium">
                     סכום
                   </th>
+                  )}
 
                   <th className="p-3.5 font-medium">
                     אמצעי תשלום
@@ -1914,7 +1935,7 @@ export default function DonationsTab({
                             )}
                           </div>
 
-                          {donor?.phone_1 && (
+                          {canViewContact && donor?.phone_1 && (
                             <div
                               dir="ltr"
                               className="
@@ -1928,7 +1949,9 @@ export default function DonationsTab({
                           )}
                         </td>
 
+                        {amountAccess !== 'hidden' && (
                         <td className="p-3.5">
+                          {canViewAmount ? (
                           <div
                             className="
                               font-bold
@@ -1940,7 +1963,11 @@ export default function DonationsTab({
                               donation.currency
                             )}
                           </div>
+                          ) : (
+                            <LockedText />
+                          )}
                         </td>
+                        )}
 
                         <td className="p-3.5">
                           {donation.payment_method ? (

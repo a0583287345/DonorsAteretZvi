@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# עטרת צבי אשדוד – מערכת ניהול תורמים
 
-## Getting Started
+מערכת פנימית לניהול תורמים, תרומות, מסמכים ותזכורות.
+ממשק בעברית, משתמשים מרובים עם הרשאות לפי תפקיד, ויומן פעולות.
 
-First, run the development server:
+## הרצה מקומית
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+צריך קובץ `.env.local` (לא נשמר בגיט) עם:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...   # צד שרת בלבד
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## פקודות
 
-## Learn More
+| פקודה | מה עושה |
+|---|---|
+| `npm run dev` | שרת פיתוח |
+| `npm run build` | בנייה לפרודקשן – חייב לעבור לפני העלאה |
+| `npm run lint` | בדיקת קוד |
 
-To learn more about Next.js, take a look at the following resources:
+## טכנולוגיות
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Auth, Postgres + RLS, Storage) · Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## הרשאות
 
-## Deploy on Vercel
+לכל תפקיד נקבע בפאנל הניהול (`/admin` → תפקידים), לכל הרשאה בנפרד:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **מותר** – המשתמש יכול לבצע את הפעולה
+- **חסום** – הכפתור מוצג עם מנעול, ובלחיצה מופיעה הודעת "אין לך הרשאה"
+- **מוסתר** – הכפתור לא מוצג בכלל
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+האכיפה האמיתית נעשית במסד הנתונים (RLS). ההגדרה "חסום/מוסתר" משפיעה רק על התצוגה.
+
+## פריסה
+
+כל push ל-`main` עולה אוטומטית לפרודקשן ב-Vercel. עובדים ב-branch ומעלים רק אחרי בדיקה.
+
+פרטים נוספים למפתחים: `CLAUDE.md`. סטטוס ותוכנית: `docs/ROADMAP.md`.

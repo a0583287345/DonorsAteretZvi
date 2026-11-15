@@ -25,17 +25,25 @@
 - `src/app/admin/` – פאנל ניהול: `UsersTab`, `RolesTab`, `AuditLogTab` (דורש `manage_users`)
 - `src/app/api/admin/users/route.ts` – API בצד השרת ליצירת משתמשים/איפוס סיסמה (service role)
 - `src/components/` – הלשוניות, המודאלים (`*FormModal`, `*CardModal`) ו-`DonorCard`
-- `src/components/AuthContext.tsx` – session + פרופיל + תפקיד (`useAuth`)
-- `src/hooks/usePermissions.ts` + `src/components/Protect.tsx` – הסתרת UI לפי הרשאות
+- `src/proxy.ts` – בצד השרת: משתמש לא מחובר מועבר ל-`/login` (session ב-cookies דרך `@supabase/ssr`)
+- `src/components/AuthContext.tsx` – **מקור יחיד** ל-session, פרופיל, תפקיד והרשאות (`useAuth`):
+  `hasPermission`, `access(perm)` → `allowed`/`locked`/`hidden`, `requirePermission(perm)` (מציג הודעה אם אסור)
+- `src/hooks/usePermissions.ts` – עטיפה דקה ל-`useAuth`
+- `src/components/Protect.tsx` – `<Protect permId>`: מותר → מוצג; חסום → אפור עם מנעול והודעה בלחיצה
+  (בהרשאת צפייה: "🔒 אין הרשאה"); מוסתר → לא מוצג. `LockedText` לטקסט חסום
+- `src/lib/permissions.ts` – רשימת כל ההרשאות (id, תווית, `kind: action|view`) – מקור יחיד
+- `src/components/Toaster.tsx` – הודעות: `toast.success/error/info/warning/denied`. **לא משתמשים ב-`alert()`**
 - `src/lib/supabase.ts` (דפדפן), `src/lib/supabase-admin.ts` (service role, **צד שרת בלבד**)
 - `src/lib/storage.ts` – `toStorageRef` / `getFileUrl` / `openSecureFile` לקבצים פרטיים
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`
-- `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`
+- `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`, `Reminder`
+- `src/types/database.ts` – טיפוסים שנוצרו ממסד הנתונים (לייצר מחדש אחרי שינוי סכמה)
 - `supabase/migrations/` – כל שינוי במסד הנתונים, לפי סדר
 
 ## מסד נתונים ואבטחה
 - טבלאות: `donors`, `donations`, `donor_documents`, `reminders`, `user_profiles` (id = auth.users.id, role_id),
-  `roles` (name, permissions JSONB), `audit_logs`.
+  `roles` (name, permissions JSONB, denied_display JSONB), `audit_logs`.
+- `roles.denied_display` = `{perm: 'locked'}` להרשאות אסורות שמוצגות חסומות; חסר = מוסתר. תצוגה בלבד, לא אבטחה.
 - **RLS פעיל על כל הטבלאות.** כל מדיניות משתמשת ב-`public.has_permission('<perm>')`, שקוראת את
   `roles.permissions` של המשתמש המחובר. `anon` חסום לגמרי.
 - `user_profiles`/`roles` – כתיבה רק עם `manage_users`. `audit_logs` – הוספה בשם המשתמש עצמו בלבד, אין עריכה/מחיקה.
@@ -50,7 +58,7 @@ donors_view / donors_create / donors_edit / donors_edit_contact / donors_delete 
 donations_view / donations_create / donations_edit / donations_delete / donations_export / donations_view_amount,
 documents_view / documents_upload / documents_delete,
 reminders_view / reminders_create / reminders_edit / reminders_delete.
-הרשאה חדשה = להוסיף אותה ב-`RolesTab.tsx` + `<Protect permId>` ב-UI + **מדיניות RLS במסד**.
+הרשאה חדשה = להוסיף אותה ב-`src/lib/permissions.ts` + `<Protect permId>` ב-UI + **מדיניות RLS במסד**.
 `donations_view_amount` נאכף כרגע רק ב-UI.
 
 ## כללים

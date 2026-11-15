@@ -6,6 +6,7 @@ import { toStorageRef } from '@/lib/storage';
 import { Donor, Donation } from '@/types/donor';
 import { logActivity } from '@/lib/logger';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Protect } from '@/components/Protect';
 import {
   X,
   Save,
@@ -21,6 +22,7 @@ import {
   ChevronDown,
   Loader2,
 } from 'lucide-react';
+import { toast } from '@/components/Toaster';
 
 interface DonationFormModalProps {
   isOpen: boolean;
@@ -39,7 +41,7 @@ export default function DonationFormModal({
   editingDonation = null,
   canEdit = true,
 }: DonationFormModalProps) {
-  const { hasPermission, loadingPerms } = usePermissions();
+  const { hasPermission, access, loadingPerms } = usePermissions();
 
   const [loading, setLoading] = useState(false);
   const [donors, setDonors] = useState<Donor[]>([]);
@@ -189,7 +191,7 @@ export default function DonationFormModal({
     if (!isActionAllowed || !e.target.files) return;
 
     if (!hasPermission('documents_upload')) {
-      alert('אין לך הרשאה להעלות מסמכים!');
+      toast.denied('אין לך הרשאה להעלות מסמכים!');
       e.target.value = '';
       return;
     }
@@ -214,17 +216,17 @@ export default function DonationFormModal({
 
     // חסימה נוספת בפונקציית השמירה
     if (isEditMode && !hasPermission('donations_edit')) {
-      alert('אין לך הרשאה לערוך תרומות!');
+      toast.denied('אין לך הרשאה לערוך תרומות!');
       return;
     }
 
     if (!isEditMode && !hasPermission('donations_create')) {
-      alert('אין לך הרשאה ליצור תרומות!');
+      toast.denied('אין לך הרשאה ליצור תרומות!');
       return;
     }
 
     if (!formData.amount || formData.amount <= 0) {
-      alert('נא להזין סכום תרומה תקין');
+      toast.warning('נא להזין סכום תרומה תקין');
       return;
     }
 
@@ -339,11 +341,11 @@ export default function DonationFormModal({
       onSuccess();
       onClose();
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('שגיאה בשמירת התרומה:', error);
       setUploadingFiles(false);
       setLoading(false);
-      alert(error?.message || (isEditMode ? 'אירעה שגיאה בעדכון התרומה' : 'אירעה שגיאה ברישום התרומה'));
+      toast.error((error as { message?: string } | null)?.message || (isEditMode ? 'אירעה שגיאה בעדכון התרומה' : 'אירעה שגיאה ברישום התרומה'));
     }
   }
 
@@ -457,7 +459,7 @@ export default function DonationFormModal({
                 className="w-full p-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white disabled:bg-slate-100"
               >
                 <option value="ILS">₪ - שקל חדש</option>
-                <option value="USD">$ - דולר ארה"ב</option>
+                <option value="USD">$ - דולר ארה&quot;ב</option>
                 <option value="EUR">€ - אירו</option>
               </select>
             </div>
@@ -476,7 +478,7 @@ export default function DonationFormModal({
               >
                 <option value="credit_card">כרטיס אשראי</option>
                 <option value="bank_transfer_israel">העברה בנקאית ישראל</option>
-                <option value="bank_transfer_usa">העברה בנקאית ארה"ב</option>
+                <option value="bank_transfer_usa">העברה בנקאית ארה&quot;ב</option>
                 <option value="bank_transfer_panama">העברה בנקאית פנמה</option>
                 <option value="bank_transfer_france">העברה בנקאית צרפת</option>
                 <option value="bit">ביט (Bit)</option>
@@ -514,27 +516,32 @@ export default function DonationFormModal({
             />
           </div>
 
+          {access('documents_upload') !== 'hidden' && (
           <div className="space-y-2 pt-2 border-t">
             <label className="block text-xs font-medium text-slate-700 flex items-center gap-1">
               <Paperclip className="w-3.5 h-3.5 text-slate-400" /> העלאת מסמכים / קבלות
             </label>
             <div className="flex gap-2">
+              <Protect permId="documents_upload" className="flex-1 [&>span>*]:w-full">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={!isActionAllowed || isBusy || !hasPermission('documents_upload')}
+                disabled={!isActionAllowed || isBusy}
                 className="flex-1 p-2.5 border border-dashed rounded-xl text-xs text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2 transition disabled:opacity-50"
               >
                 <Upload className="w-4 h-4 text-blue-600" /> בחר קבצים
               </button>
+              </Protect>
+              <Protect permId="documents_upload" className="flex-1 [&>span>*]:w-full">
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                disabled={!isActionAllowed || isBusy || !hasPermission('documents_upload')}
+                disabled={!isActionAllowed || isBusy}
                 className="flex-1 p-2.5 border border-dashed rounded-xl text-xs text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2 transition disabled:opacity-50"
               >
                 <Camera className="w-4 h-4 text-emerald-600" /> צילום ישיר
               </button>
+              </Protect>
               <input type="file" ref={fileInputRef} multiple onChange={handleFileSelect} className="hidden" />
               <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
             </div>
@@ -557,6 +564,7 @@ export default function DonationFormModal({
               </div>
             )}
           </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">

@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toast } from '@/components/Toaster';
 
 /*
  * קבצים נשמרים ב-buckets פרטיים. במסד שומרים "bucket/path" (למשל
@@ -59,7 +60,7 @@ export async function openSecureFile(
 
   if (!url) {
     win?.close();
-    alert('לא ניתן לפתוח את הקובץ. ייתכן שאין לך הרשאה לצפות במסמכים.');
+    toast.denied('לא ניתן לפתוח את הקובץ. ייתכן שאין לך הרשאה לצפות במסמכים.');
     return;
   }
 
