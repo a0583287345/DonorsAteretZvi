@@ -20,7 +20,10 @@
 - `npm run lint` – ESLint (נקי: 0 שגיאות/אזהרות – לשמור על זה)
 
 ## מבנה
-- `src/app/page.tsx` – הדשבורד הראשי: לשוניות תורמים/תרומות/תזכורות (`?tab=`), presence
+- `src/app/page.tsx` – המסך הראשי: לשוניות דשבורד/תורמים/תרומות/תזכורות (`?tab=`; בלי tab → דשבורד למורשים), presence
+- `src/components/dashboard/` – `DashboardTab` (סיכומים, מה מחכה לי, הוראות קבע, גרפים) + `Charts.tsx` (גרפי HTML בצבע אחד)
+- `src/components/recurring/` – רשימה/טופס הוראות קבע + `DonorRecurringSection` בכרטיס התורם;
+  `src/lib/recurring/schedule.ts` – חישובי חיוב אחרון/נותרו/צפי (זהה ל-`recurring_last_charge` במסד)
 - `src/app/login/page.tsx` – התחברות
 - `src/app/admin/` – פאנל ניהול: `UsersTab`, `RolesTab`, `AuditLogTab` (דורש `manage_users`)
 - `src/app/api/admin/users/route.ts` – API בצד השרת ליצירת משתמשים/איפוס סיסמה (service role)
@@ -58,6 +61,8 @@
   `recurring_donations` (הוראות קבע), `import_review` (תור לבדיקה), `donor_duplicate_dismissals`, `integration_settings`, `integration_secrets` (רק service_role), `user_profiles` (id = auth.users.id, role_id),
   `roles` (name, permissions JSONB, denied_display JSONB), `audit_logs`.
 - `roles.denied_display` = `{perm: 'locked'}` להרשאות אסורות שמוצגות חסומות; חסר = מוסתר. תצוגה בלבד, לא אבטחה.
+- תזכורות הוראות קבע (`recurring_renewal` חודש לפני החיוב האחרון, `recurring_failed` ביום הכישלון) נוצרות ע"י **טריגר במסד**
+  על `recurring_donations` (`sync_recurring_reminders`) – לא בקוד. `reminders.recurring_id` מקשר.
 - מחיקת תורם מוחקת את התרומות שלו (cascade) – מיזוג רק דרך הפונקציה `merge_donors` (פעולה אחת שלמה).
 - **RLS פעיל על כל הטבלאות.** כל מדיניות משתמשת ב-`public.has_permission('<perm>')`, שקוראת את
   `roles.permissions` של המשתמש המחובר. `anon` חסום לגמרי.
@@ -68,7 +73,7 @@
   ואחר כך בדיקה עם `get_advisors`. כשהשינוי שובר קוד קיים: קודם לפרוס את הקוד, ורק אחר כך להפעיל את המיגרציה.
 
 ## הרשאות (מפתחות ב-`roles.permissions`)
-view_dashboard, manage_users, manage_roles,
+view_dashboard, dashboard_view, manage_users, manage_roles,
 donors_view / donors_create / donors_edit / donors_edit_contact / donors_delete / donors_export / donors_view_contact / donors_merge,
 donations_view / donations_create / donations_edit / donations_delete / donations_export / donations_view_amount,
 documents_view / documents_upload / documents_delete,

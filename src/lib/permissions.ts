@@ -27,6 +27,12 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    title: 'דשבורד',
+    permissions: [
+      { id: 'dashboard_view', label: 'צפייה בדשבורד (סיכומים, הוראות קבע, גרפים)', kind: 'view' },
+    ],
+  },
+  {
     title: 'ניהול תורמים',
     permissions: [
       { id: 'donors_view', label: 'צפייה ברשימת התורמים', kind: 'view' },

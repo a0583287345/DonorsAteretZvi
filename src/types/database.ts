@@ -375,6 +375,7 @@ export type Database = {
       }
       reminders: {
         Row: {
+          recurring_id: string | null
           attachments: Json | null
           created_at: string | null
           created_by: string | null
@@ -409,6 +410,7 @@ export type Database = {
           yahrzeit_id: string | null
         }
         Insert: {
+          recurring_id?: string | null
           attachments?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -443,6 +445,7 @@ export type Database = {
           yahrzeit_id?: string | null
         }
         Update: {
+          recurring_id?: string | null
           attachments?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -488,6 +491,7 @@ export type Database = {
       }
       recurring_donations: {
         Row: {
+          start_date: string | null
           amount: number
           charge_day: number | null
           created_at: string
@@ -506,6 +510,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          start_date?: string | null
           amount?: number
           charge_day?: number | null
           created_at?: string
@@ -524,6 +529,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          start_date?: string | null
           amount?: number
           charge_day?: number | null
           created_at?: string
@@ -728,6 +734,10 @@ export type Database = {
     }
     Functions: {
       has_permission: { Args: { p: string }; Returns: boolean }
+      recurring_last_charge: {
+        Args: { p_start: string | null; p_total: number | null; p_next: string | null; p_remaining: number | null }
+        Returns: string | null
+      }
       merge_donors: { Args: { p_keep: string; p_remove: string }; Returns: undefined }
       my_role_id: { Args: never; Returns: string }
     }

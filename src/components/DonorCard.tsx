@@ -10,6 +10,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { Protect, LockedText } from '@/components/Protect';
 import type { Reminder } from '@/types/donor';
 import ReminderCardModal from './reminders/ReminderCardModal';
+import DonorRecurringSection from './recurring/DonorRecurringSection';
 import { STATUS_STYLES } from './reminders/reminderUi';
 import { formatGregorian, todayISO } from '@/lib/reminders/dates';
 import { formatHebrewDate, formatHebrewParts, toHebrewParts } from '@/lib/reminders/hebrew';
@@ -745,6 +746,9 @@ export default function DonorCard({
             )}
           </div>
         )}
+
+        {/* RECURRING */}
+        <DonorRecurringSection donor={donor} />
 
         {/* DONATIONS */}
         {donationsAccess === 'locked' && (

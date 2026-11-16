@@ -47,6 +47,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   donor_birthday_gregorian: 'יום הולדת לועזי',
   donor_birthday_hebrew: 'יום הולדת עברי',
   donor_yahrzeit: 'יארצייט',
+  recurring_renewal: 'חידוש הוראת קבע',
+  recurring_failed: 'הוראת קבע נכשלה',
 };
 
 /** סוג הודעה לתורם */

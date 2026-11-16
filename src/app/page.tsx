@@ -47,7 +47,9 @@ import {
   UserCircle,
   Radio,
   ShieldAlert,
+  LayoutDashboard,
 } from 'lucide-react';
+import DashboardTab from '@/components/dashboard/DashboardTab';
 import { toast } from '@/components/Toaster';
 
 /* ============================================================
@@ -79,6 +81,7 @@ function DashboardContent() {
   
   // בדיקת הרשאה לצפייה בלשונית תזכורות (מותאם למבנה ההרשאות במערכת שלך)
   const canViewReminders = hasPermission('reminders_view');
+  const canSeeStats = hasPermission('dashboard_view');
 
   const currentUserNickname =
     profile?.full_name ||
@@ -115,19 +118,26 @@ function DashboardContent() {
   /* ============================================================
      לשונית פעילה + סנכרון נתיבים
   ============================================================ */
+  // בלי ?tab – הדשבורד (למי שמורשה), אחרת תורמים
+  const tabParam = searchParams.get('tab');
   const currentTabFromUrl =
-    searchParams.get('tab') === 'donations'
+    tabParam === 'donations'
       ? 'donations'
-      : searchParams.get('tab') === 'reminders' && canViewReminders
+      : tabParam === 'reminders' && canViewReminders
       ? 'reminders'
+      : tabParam === 'donors'
+      ? 'donors'
+      : canSeeStats
+      ? 'dashboard'
       : 'donors';
 
   // הלשונית הפעילה נגזרת מהכתובת (?tab=), כך שהיא תמיד מסונכרנת
   const activeTab = currentTabFromUrl;
 
   const handleTabChange = useCallback(
-    (tab: 'donors' | 'donations' | 'reminders') => {
+    (tab: 'dashboard' | 'donors' | 'donations' | 'reminders') => {
       if (tab === 'reminders' && !canViewReminders) return;
+      if (tab === 'dashboard' && !canSeeStats) return;
 
       const params = new URLSearchParams(
         searchParams.toString()
@@ -144,6 +154,7 @@ function DashboardContent() {
       router,
       searchParams,
       canViewReminders,
+      canSeeStats,
     ]
   );
 
@@ -671,6 +682,23 @@ function DashboardContent() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="border-b border-slate-200 bg-slate-50 p-2">
             <div className="flex gap-2">
+              <Protect permId="dashboard_view">
+                <button
+                  onClick={() => handleTabChange('dashboard')}
+                  className={`
+                    flex-1 md:flex-none px-6 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2
+                    ${
+                      activeTab === 'dashboard'
+                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
+                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                    }
+                  `}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  דשבורד
+                </button>
+              </Protect>
+
               <button
                 onClick={() => handleTabChange('donors')}
                 className={`
@@ -722,6 +750,16 @@ function DashboardContent() {
               </Protect>
             </div>
           </div>
+
+          {/* TAB: DASHBOARD */}
+          {activeTab === 'dashboard' && canSeeStats && (
+            <DashboardTab
+              donors={donors}
+              donations={donations}
+              onViewDonor={handleOpenViewDonor}
+              onGoToTab={handleTabChange}
+            />
+          )}
 
           {/* TAB: DONORS */}
           {activeTab === 'donors' && (

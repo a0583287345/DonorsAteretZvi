@@ -64,6 +64,8 @@ export interface Donation {
   external_id?: string | null;
   installments?: number | null;
   category?: string | null;
+  /** מספר הוראת הקבע בנדרים פלוס (חיוב חודשי) */
+  recurring_external_id?: string | null;
   attachments?: Attachment[];
   created_at: string | null;
 }
