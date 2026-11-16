@@ -6,7 +6,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { toast } from '@/components/Toaster';
 import {
-  Bell, Plus, RefreshCw, Search, List, CalendarDays, Repeat, Sparkles, Check, Clock, User, Loader2,
+  Bell, Plus, RefreshCw, Search, List, CalendarDays, Repeat, Sparkles, Check, Clock, User, Loader2, Mail,
 } from 'lucide-react';
 import type { Donor, Reminder } from '@/types/donor';
 import { formatGregorian, todayISO } from '@/lib/reminders/dates';
@@ -15,6 +15,7 @@ import { reminderState, type ReminderState, type ReminderStatus } from '@/lib/re
 import { markReminderDone } from '@/lib/reminders/actions';
 import ReminderCardModal from './reminders/ReminderCardModal';
 import HebrewCalendarView from './reminders/HebrewCalendarView';
+import EmailOutboxPanel from './reminders/EmailOutboxPanel';
 import { SOURCE_LABELS, STATUS_STYLES } from './reminders/reminderUi';
 
 export type { Reminder };
@@ -48,13 +49,17 @@ export default function RemindersTab({
   onViewDonor,
   refreshKey = 0,
 }: RemindersTabProps) {
-  const { loadingPerms } = usePermissions();
+  const { loadingPerms, access } = usePermissions();
+  const emailsAccess = access('emails_view');
+  const canViewEmails = emailsAccess === 'allowed';
 
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('active');
-  const [view, setView] = useState<'list' | 'calendar'>('list');
+  const [view, setView] = useState<'list' | 'calendar' | 'emails'>('list');
+  // מספר ההודעות לתורמים שממתינות לאישור (תג על כפתור "מיילים")
+  const [pendingEmails, setPendingEmails] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [quickDoneId, setQuickDoneId] = useState<string | null>(null);
 
@@ -77,6 +82,21 @@ export default function RemindersTab({
       cancelled = true;
     };
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (!canViewEmails) return;
+    let cancelled = false;
+    supabase
+      .from('email_outbox')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending_approval')
+      .then(({ count }) => {
+        if (!cancelled) setPendingEmails(count ?? 0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewEmails, refreshKey]);
 
   const donorName = useCallback(
     (id: string | null) => {
@@ -166,6 +186,25 @@ export default function RemindersTab({
               <CalendarDays className="w-4 h-4" />
               לוח שנה
             </button>
+            {emailsAccess !== 'hidden' && (
+              <Protect permId="emails_view" mode="action">
+                <button
+                  onClick={() => setView('emails')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold ${view === 'emails' ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Mail className="w-4 h-4" />
+                  מיילים
+                  {pendingEmails > 0 && (
+                    <span
+                      className={`min-w-5 px-1.5 rounded-full text-[10px] leading-5 ${view === 'emails' ? 'bg-white text-purple-700' : 'bg-amber-500 text-white'}`}
+                      title="ממתינים לאישור"
+                    >
+                      {pendingEmails}
+                    </span>
+                  )}
+                </button>
+              </Protect>
+            )}
           </div>
 
           <button
@@ -194,6 +233,8 @@ export default function RemindersTab({
           <Loader2 className="w-5 h-5 animate-spin" />
           טוען תזכורות...
         </div>
+      ) : view === 'emails' && canViewEmails ? (
+        <EmailOutboxPanel onPendingCount={setPendingEmails} />
       ) : view === 'calendar' ? (
         <HebrewCalendarView reminders={reminders} donorMap={donorMap} today={today} onOpen={(r) => setOpenId(r.id)} />
       ) : (

@@ -73,6 +73,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { id: 'reminders_delete', label: 'מחיקת תזכורות', kind: 'action' },
     ],
   },
+  {
+    title: 'מיילים',
+    permissions: [
+      { id: 'emails_view', label: 'צפייה במיילים (ממתינים לאישור והיסטוריה)', kind: 'view' },
+      { id: 'emails_approve', label: 'אישור / דחייה של מיילים לתורמים והרצת הבדיקה היומית', kind: 'action' },
+    ],
+  },
 ];
 
 export const ALL_PERMISSIONS: PermissionDef[] = PERMISSION_GROUPS.flatMap((g) => g.permissions);

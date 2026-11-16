@@ -11,23 +11,24 @@ import {
 import { isValidEmail } from '@/lib/email/templates';
 
 // =====================================================================
-// פעולות מייל מפאנל הניהול (דורש manage_users):
-//   status          – האם שמורה סיסמת אפליקציה
-//   save_password   – שמירת סיסמת אפליקציה של Gmail (לא נחשפת לדפדפן לעולם)
-//   clear_password  – מחיקת הסיסמה
-//   test            – שליחת מייל בדיקה
-//   send_approved   – שליחה מיידית של מיילים מאושרים
-//   run_now         – הרצת הבדיקה היומית עכשיו (הכנה + שליחה)
+// פעולות מייל:
+//   פאנל ניהול (manage_users):
+//     status          – האם שמורה סיסמת אפליקציה
+//     save_password   – שמירת סיסמת אפליקציה של Gmail (לא נחשפת לדפדפן לעולם)
+//     clear_password  – מחיקת הסיסמה
+//     test            – שליחת מייל בדיקה
+//   לשונית תזכורות (emails_approve או manage_users):
+//     send_approved   – שליחה מיידית של מיילים מאושרים
+//     run_now         – הרצת הבדיקה היומית עכשיו (הכנה + שליחה)
 // =====================================================================
+
+const APPROVER_ACTIONS = new Set(['send_approved', 'run_now']);
 
 function fail(error: string, status = 400) {
   return NextResponse.json({ error }, { status });
 }
 
 export async function POST(request: Request) {
-  const user = await requirePermissionFromRequest(request, 'manage_users');
-  if (user instanceof NextResponse) return user;
-
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -35,6 +36,12 @@ export async function POST(request: Request) {
     return fail('בקשה לא תקינה');
   }
   const action = typeof body.action === 'string' ? body.action : '';
+
+  const user = await requirePermissionFromRequest(
+    request,
+    APPROVER_ACTIONS.has(action) ? ['manage_users', 'emails_approve'] : 'manage_users'
+  );
+  if (user instanceof NextResponse) return user;
 
   try {
     switch (action) {

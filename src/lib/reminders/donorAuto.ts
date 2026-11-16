@@ -3,6 +3,7 @@
 //   יום הולדת → תזכורת שנתית לועזית + תזכורת שנתית עברית
 //   כל יום יארצייט (donor_yahrzeits) → תזכורת שנתית עברית לפי כללי יארצייט
 // נקרא אחרי שמירת תורם. יוצר / מעדכן / מוחק לפי הנתונים בכרטיס.
+// תזכורת חדשה: מייל למנהל + הודעה לתורם (מזל טוב / עילוי נשמה) כברירת מחדל.
 // הגדרות שהמשתמש שינה בתזכורת (התראה מראש, מיילים, תיאור) נשמרות.
 // =====================================================================
 
@@ -149,6 +150,9 @@ export async function syncDonorAutoReminders(d: DonorDates, userId?: string): Pr
         is_recurring: true,
         recurring_type: 'yearly',
         completed_through: pastHandled(),
+        // ברירת מחדל: מייל למנהל + הודעה לתורם (ממתינה לאישור לפני שליחה)
+        notify_email: true,
+        donor_message_type: source === 'donor_yahrzeit' ? 'memorial' : 'birthday',
         created_by: userId ?? null,
       };
       const { error: e } = await supabase.from('reminders').insert([insert]);

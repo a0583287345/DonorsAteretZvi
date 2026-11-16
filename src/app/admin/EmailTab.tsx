@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Mail, KeyRound, Save, Send, Loader2, CheckCircle2, XCircle, Clock, Play, RotateCcw, Info, Check, X, Trash2,
+  Mail, KeyRound, Save, Send, Loader2, CheckCircle2, XCircle, RotateCcw, Info, Trash2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/logger';
@@ -17,22 +17,11 @@ import {
   type EmailTemplates,
   type TemplateKey,
 } from '@/lib/email/templates';
-import type { Json, Tables } from '@/types/database';
-
-type OutboxRow = Tables<'email_outbox'>;
+import type { Json } from '@/types/database';
+import EmailOutboxPanel from '@/components/reminders/EmailOutboxPanel';
 
 const inputClass =
   'w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30';
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  pending_approval: { label: 'ממתין לאישור', className: 'bg-amber-50 text-amber-800 border-amber-200' },
-  approved: { label: 'מאושר – ממתין לשליחה', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  sent: { label: 'נשלח', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  failed: { label: 'נכשל', className: 'bg-red-50 text-red-700 border-red-200' },
-  rejected: { label: 'נדחה', className: 'bg-slate-100 text-slate-500 border-slate-200' },
-};
-
-const KIND_LABELS: Record<string, string> = { manager: 'למנהל', donor: 'לתורם', test: 'בדיקה' };
 
 /** קריאה ל-API המיילים בשרת עם הטוקן של המשתמש */
 async function emailApi<T = Record<string, unknown>>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
@@ -49,7 +38,7 @@ async function emailApi<T = Record<string, unknown>>(action: string, payload: Re
   return data as T;
 }
 
-/** פאנל ניהול → מיילים: חיבור Gmail, נמענים, תבניות, תור אישור והיסטוריה */
+/** פאנל ניהול → מיילים: חיבור Gmail, נמענים, תבניות (+ תור המיילים המשותף) */
 export default function EmailTab() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -66,15 +55,12 @@ export default function EmailTab() {
   const [hasPassword, setHasPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [testTo, setTestTo] = useState('');
-
-  // תור
-  const [outbox, setOutbox] = useState<OutboxRow[]>([]);
-  const [outboxView, setOutboxView] = useState<'pending' | 'history'>('pending');
+  // מרענן את תור המיילים אחרי מייל בדיקה
+  const [outboxKey, setOutboxKey] = useState(0);
 
   const loadAll = useCallback(async () => {
-    const [{ data: s }, { data: o }, status] = await Promise.all([
+    const [{ data: s }, status] = await Promise.all([
       supabase.from('email_settings').select('*').eq('id', 1).maybeSingle(),
-      supabase.from('email_outbox').select('*').order('created_at', { ascending: false }).limit(200),
       emailApi<{ hasPassword: boolean }>('status').catch(() => ({ hasPassword: false })),
     ]);
     if (s) {
@@ -85,7 +71,6 @@ export default function EmailTab() {
       setManagerEmails((s.manager_emails ?? []).join('\n'));
       setTemplates(mergeTemplates(s.templates));
     }
-    setOutbox(o ?? []);
     setHasPassword(status.hasPassword);
     setLoading(false);
   }, []);
@@ -170,61 +155,7 @@ export default function EmailTab() {
       await persistGmailUser();
       await emailApi('test', { to: testTo });
       toast.success(`מייל בדיקה נשלח ל-${testTo}`);
-      await loadAll();
-    });
-
-  const runNow = () =>
-    run('run', async () => {
-      const r = await emailApi<{
-        queued: { manager: number; donor: number };
-        sent: number;
-        failed: number;
-        waiting: number;
-        reason: string | null;
-      }>('run_now');
-      const parts = [
-        `הוכנו ${r.queued.manager} מיילים למנהל ו-${r.queued.donor} לתורמים`,
-        `נשלחו ${r.sent}`,
-        r.failed ? `נכשלו ${r.failed}` : '',
-        r.reason ? `ממתינים ${r.waiting} (${r.reason})` : '',
-      ].filter(Boolean);
-      toast.info(parts.join(' · '));
-      await loadAll();
-    });
-
-  const decide = (row: OutboxRow, approve: boolean) =>
-    run(`decide-${row.id}`, async () => {
-      const { error } = await supabase
-        .from('email_outbox')
-        .update({
-          status: approve ? 'approved' : 'rejected',
-          decided_by: user?.id ?? null,
-          decided_at: new Date().toISOString(),
-        })
-        .eq('id', row.id);
-      if (error) throw new Error(error.message);
-      await logActivity(
-        approve ? 'EMAIL_APPROVED' : 'EMAIL_REJECTED',
-        'email_outbox',
-        `${approve ? 'אישר' : 'דחה'} הודעה לתורם (${row.to_email}): ${row.subject}`
-      );
-      // אם הגיע מועד השליחה – שולחים מיד
-      if (approve) {
-        const r = await emailApi<{ sent: number; reason: string | null }>('send_approved');
-        toast.success(r.sent ? 'ההודעה אושרה ונשלחה' : `ההודעה אושרה${r.reason ? ` – ${r.reason}` : ' ותישלח ביום המועד'}`);
-      } else {
-        toast.info('ההודעה נדחתה');
-      }
-      await loadAll();
-    });
-
-  const retry = (row: OutboxRow) =>
-    run(`decide-${row.id}`, async () => {
-      const { error } = await supabase.from('email_outbox').update({ status: 'approved', error: null }).eq('id', row.id);
-      if (error) throw new Error(error.message);
-      const r = await emailApi<{ sent: number; failed: number; reason: string | null }>('send_approved');
-      toast.info(r.sent ? 'נשלח' : r.reason || 'השליחה נכשלה שוב');
-      await loadAll();
+      setOutboxKey((k) => k + 1);
     });
 
   if (loading) {
@@ -235,8 +166,6 @@ export default function EmailTab() {
     );
   }
 
-  const pending = outbox.filter((m) => m.status === 'pending_approval' || m.status === 'approved' || m.status === 'failed');
-  const history = outbox.filter((m) => m.status === 'sent' || m.status === 'rejected');
   const ready = hasPassword && !!gmailUser.trim();
 
   return (
@@ -259,18 +188,9 @@ export default function EmailTab() {
                 ? 'יש לשמור סיסמת אפליקציה.'
                 : !enabled
                   ? 'החיבור מוכן – יש להפעיל את השליחה ולשמור.'
-                  : `נשלח מ-${gmailUser}. בדיקה אוטומטית כל בוקר.`}
+                  : `נשלח מ-${gmailUser}. בדיקה אוטומטית כל בוקר. אישור מיילים – גם בלשונית התזכורות.`}
           </div>
         </div>
-        <button
-          onClick={runNow}
-          disabled={busy === 'run'}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700"
-          title="מכין מיילים לפי התזכורות של היום ושולח את המאושרים"
-        >
-          {busy === 'run' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          הרץ בדיקה יומית עכשיו
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -464,91 +384,8 @@ export default function EmailTab() {
         <p className="text-xs text-slate-500">השינויים בתבניות נשמרים בכפתור &quot;שמור הגדרות ותבניות&quot;.</p>
       </section>
 
-      {/* תור והיסטוריה */}
-      <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-slate-800 ml-auto">מיילים</h3>
-          <button
-            onClick={() => setOutboxView('pending')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${outboxView === 'pending' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
-          >
-            לטיפול ({pending.length})
-          </button>
-          <button
-            onClick={() => setOutboxView('history')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${outboxView === 'history' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
-          >
-            היסטוריה ({history.length})
-          </button>
-        </div>
-
-        {(outboxView === 'pending' ? pending : history).length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-8">אין מיילים להצגה.</p>
-        ) : (
-          <div className="space-y-2">
-            {(outboxView === 'pending' ? pending : history).map((m) => {
-              const st = STATUS_LABELS[m.status] ?? STATUS_LABELS.pending_approval;
-              const isBusy = busy === `decide-${m.id}`;
-              return (
-                <details key={m.id} className="rounded-xl border border-slate-200 bg-white">
-                  <summary className="flex flex-wrap items-center gap-2 p-3 cursor-pointer text-sm">
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${st.className}`}>{st.label}</span>
-                    <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{KIND_LABELS[m.kind] ?? m.kind}</span>
-                    <span className="font-medium text-slate-800 truncate">{m.subject}</span>
-                    <span className="text-xs text-slate-500" dir="ltr">
-                      {m.to_email}
-                    </span>
-                    <span className="text-xs text-slate-400 flex items-center gap-1 mr-auto">
-                      <Clock className="w-3 h-3" />
-                      {m.status === 'sent' && m.sent_at
-                        ? `נשלח ${new Date(m.sent_at).toLocaleString('he-IL')}`
-                        : `לשליחה ב-${new Date(m.send_on).toLocaleDateString('he-IL')}`}
-                    </span>
-                  </summary>
-                  <div className="px-3 pb-3 space-y-3">
-                    <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-lg p-3">
-                      {m.body}
-                    </pre>
-                    {m.error && <p className="text-xs text-red-600">שגיאה: {m.error}</p>}
-                    <div className="flex gap-2">
-                      {m.status === 'pending_approval' && (
-                        <>
-                          <button
-                            onClick={() => decide(m, true)}
-                            disabled={isBusy}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
-                          >
-                            {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            אשר ושלח
-                          </button>
-                          <button
-                            onClick={() => decide(m, false)}
-                            disabled={isBusy}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            דחה
-                          </button>
-                        </>
-                      )}
-                      {m.status === 'failed' && (
-                        <button
-                          onClick={() => retry(m)}
-                          disabled={isBusy}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          נסה שוב
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {/* תור והיסטוריה (גם בלשונית התזכורות) */}
+      <EmailOutboxPanel key={outboxKey} />
     </div>
   );
 }

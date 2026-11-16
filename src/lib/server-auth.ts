@@ -7,11 +7,12 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export type AuthorizedUser = { id: string; name: string };
 
-/** מחזיר את המשתמש אם יש לו את ההרשאה, אחרת תשובת שגיאה מוכנה */
+/** מחזיר את המשתמש אם יש לו את ההרשאה (או אחת מהרשימה), אחרת תשובת שגיאה מוכנה */
 export async function requirePermissionFromRequest(
   request: Request,
-  permission: string
+  permission: string | string[]
 ): Promise<AuthorizedUser | NextResponse> {
+  const anyOf = Array.isArray(permission) ? permission : [permission];
   const token = request.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'חסר טוקן התחברות' }, { status: 401 });
 
@@ -28,7 +29,7 @@ export async function requirePermissionFromRequest(
     .single();
 
   const role = profile?.role as { permissions?: Record<string, unknown> } | null | undefined;
-  if (role?.permissions?.[permission] !== true) {
+  if (!anyOf.some((p) => role?.permissions?.[p] === true)) {
     return NextResponse.json({ error: 'אין לך הרשאה לפעולה זו.' }, { status: 403 });
   }
 

@@ -92,7 +92,8 @@ export default function AddReminderModal({
   const [donorId, setDonorId] = useState<string>(
     editingReminder ? editingReminder.donor_id || '' : preselectedDonorId || ''
   );
-  const [notifyEmail, setNotifyEmail] = useState(editingReminder?.notify_email || false);
+  // תזכורת חדשה – מייל למנהל מסומן כברירת מחדל
+  const [notifyEmail, setNotifyEmail] = useState(editingReminder ? !!editingReminder.notify_email : true);
   const [donorMessageType, setDonorMessageType] = useState(editingReminder?.donor_message_type || 'none');
   const [donorMessageCustom, setDonorMessageCustom] = useState(editingReminder?.donor_message_custom || '');
 
