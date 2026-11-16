@@ -1,4 +1,5 @@
 import type { Donor } from '@/types/donor';
+import { normalizeZeout } from '@/lib/import/donorMatch';
 
 /** יארצייט אחד בטופס. id קיים = שמור במסד (donor_yahrzeits) */
 export interface YahrzeitEntry {
@@ -17,6 +18,7 @@ export interface DonorFormData {
   last_name_he: string;
   first_name_en: string;
   last_name_en: string;
+  zeout: string;
   phone_1: string;
   phone_2: string;
   email: string;
@@ -47,6 +49,7 @@ export const emptyDonorFormData: DonorFormData = {
   last_name_he: '',
   first_name_en: '',
   last_name_en: '',
+  zeout: '',
   phone_1: '',
   phone_2: '',
   email: '',
@@ -72,6 +75,7 @@ export function donorToFormData(donor: Donor | null | undefined): DonorFormData 
     last_name_he: donor.last_name_he || '',
     first_name_en: donor.first_name_en || '',
     last_name_en: donor.last_name_en || '',
+    zeout: donor.zeout || '',
     phone_1: donor.phone_1 || '',
     phone_2: donor.phone_2 || '',
     email: donor.email || '',
@@ -98,6 +102,7 @@ export function formDataToPayload(formData: DonorFormData) {
     last_name_he: text(formData.last_name_he),
     first_name_en: text(formData.first_name_en),
     last_name_en: text(formData.last_name_en),
+    zeout: normalizeZeout(formData.zeout),
     phone_1: text(formData.phone_1),
     phone_2: text(formData.phone_2),
     email: text(formData.email),

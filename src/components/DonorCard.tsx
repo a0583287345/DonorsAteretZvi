@@ -56,6 +56,7 @@ export interface DonationRecord {
   file_url?: string | null;
   notes?: string | null;
   created_at?: string | null;
+  external_source?: string | null;
 }
 
 /* =========================================================
@@ -511,6 +512,7 @@ export default function DonorCard({
             <div className="min-w-0">
               <h3 className="text-base font-bold text-slate-800 truncate">{fullHebrewName || 'ללא שם'}</h3>
               <div dir="ltr" className="text-[11px] text-slate-400 truncate">{fullEnglishName || 'No English name'}</div>
+              {donor.zeout && <div className="text-[11px] text-slate-500">ת&quot;ז {donor.zeout}</div>}
             </div>
           </div>
 
@@ -797,6 +799,9 @@ export default function DonorCard({
                             {amountAccess === 'locked' && <LockedText text="סכום: אין הרשאה" />}
                             <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
                               אמצעי תשלום: <span className="text-slate-700">{paymentMethodLabel}</span>
+                              {donation.external_source === 'nedarim' && (
+                                <span className="mr-1.5 px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200">נדרים פלוס</span>
+                              )}
                             </div>
                           </div>
                         </div>

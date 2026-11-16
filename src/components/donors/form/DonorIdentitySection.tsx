@@ -1,9 +1,11 @@
 'use client';
 
 import type { DonorFormSectionProps } from './donorFormData';
+import { isValidZeout } from '@/lib/import/donorMatch';
 
-/** פרטי זיהוי: שמות בעברית ובאנגלית */
+/** פרטי זיהוי: שמות בעברית ובאנגלית + ת"ז */
 export default function DonorIdentitySection({ formData, updateField }: DonorFormSectionProps) {
+  const zeoutWarning = formData.zeout.trim() !== '' && !isValidZeout(formData.zeout);
   return (
     <>
             {/* --------------------------------------------- */}
@@ -187,6 +189,26 @@ export default function DonorIdentitySection({ formData, updateField }: DonorFor
                       text-left
                     "
                   />
+                </div>
+
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    תעודת זהות
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    dir="ltr"
+                    maxLength={12}
+                    value={formData.zeout}
+                    onChange={(e) => updateField('zeout', e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="9 ספרות"
+                    className="w-full p-2.5 border rounded-xl text-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  {zeoutWarning && (
+                    <p className="text-[11px] text-amber-600 mt-1">ספרת הביקורת לא תקינה – כדאי לבדוק את המספר</p>
+                  )}
+                  <p className="text-[11px] text-slate-400 mt-1">משמש לזיהוי התורם בייבוא מנדרים פלוס</p>
                 </div>
               </div>
             </section>

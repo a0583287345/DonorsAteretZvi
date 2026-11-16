@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import type { Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
-import { UserPlus, Download } from 'lucide-react';
+import { UserPlus, Download, GitMerge } from 'lucide-react';
+import DuplicatesModal from './donors/duplicates/DuplicatesModal';
 import { exportDonorsToExcel } from './donors/donorUtils';
 import { useDonorFilters } from './donors/useDonorFilters';
 import DonorsFiltersPanel from './donors/DonorsFiltersPanel';
@@ -17,6 +19,8 @@ interface DonorsTabProps {
   onCreateDonor: () => void;
   onViewDonor: (donor: Donor) => void;
   onAddDonation: (donorId?: string, e?: React.MouseEvent) => void;
+  /** רענון תורמים ותרומות (אחרי מיזוג / ייבוא) */
+  onRefresh: () => void;
 }
 
 /** לשונית התורמים: כותרת, חיפוש וסינון, טבלה וחלון ניווט */
@@ -26,6 +30,7 @@ export default function DonorsTab({
   onCreateDonor,
   onViewDonor,
   onAddDonation,
+  onRefresh,
 }: DonorsTabProps) {
   const { hasPermission, access, loadingPerms } = usePermissions();
 
@@ -39,6 +44,26 @@ export default function DonorsTab({
 
   // כתובת שנבחרה לניווט (פותח חלון בחירת אפליקציה)
   const [navigationAddress, setNavigationAddress] = useState<string | null>(null);
+
+  // בירור כפילויות + מספר התורמים המיובאים שממתינים לבדיקה
+  const canMerge = hasPermission('donors_merge');
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [pendingReview, setPendingReview] = useState(0);
+  useEffect(() => {
+    if (!canMerge || showDuplicates) return;
+    let active = true;
+    const t = setTimeout(async () => {
+      const { count } = await supabase
+        .from('import_review')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (active) setPendingReview(count ?? 0);
+    }, 0);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [canMerge, showDuplicates, donors]);
 
   const exportToExcel = () => {
     // בדיקת הרשאה גם כאן, לא רק בכפתור
@@ -83,6 +108,24 @@ export default function DonorsTab({
         </div>
 
         <div className="flex items-center gap-2">
+          <Protect permId="donors_merge">
+            <button
+              onClick={() => setShowDuplicates(true)}
+              className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition shadow-sm"
+            >
+              <GitMerge className="w-4 h-4" />
+              בירור כפילויות
+              {pendingReview > 0 && (
+                <span
+                  className="absolute -top-2 -left-2 min-w-5 h-5 px-1 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center"
+                  title="תורמים מיובאים שממתינים לבדיקה"
+                >
+                  {pendingReview}
+                </span>
+              )}
+            </button>
+          </Protect>
+
           <Protect permId="donors_export">
             <button
               onClick={exportToExcel}
@@ -152,6 +195,15 @@ export default function DonorsTab({
       />
 
       <NavigationPicker address={navigationAddress} onClose={() => setNavigationAddress(null)} />
+
+      {showDuplicates && canMerge && (
+        <DuplicatesModal
+          donors={donors}
+          initialTab={pendingReview > 0 ? 'review' : 'duplicates'}
+          onClose={() => setShowDuplicates(false)}
+          onChanged={onRefresh}
+        />
+      )}
     </div>
   );
 }

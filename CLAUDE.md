@@ -11,7 +11,7 @@
 - Next.js 16.3 (App Router) + React 19.2 + TypeScript 5
 - Tailwind CSS 4 (דרך `@tailwindcss/postcss`), אייקונים: `lucide-react`
 - Supabase (פרויקט `AtertZvi2`, id `ievxzfsdaszgvplyqdmh`): Auth, Postgres + RLS, Storage פרטי, Realtime Presence
-- `xlsx` לייצוא לאקסל; `@hebcal/core` ו-`nodemailer` מותקנים אבל עדיין לא בשימוש
+- `xlsx` לייצוא לאקסל; `@hebcal/core` (תאריכים עבריים), `nodemailer` (Gmail)
 - פריסה: Vercel – כל push ל-main עולה אוטומטית לפרודקשן. פיתוח: VS Code, Windows
 
 ## פקודות
@@ -41,6 +41,12 @@
 - `src/lib/storage.ts` – `toStorageRef` / `getFileUrl` / `openSecureFile` לקבצים פרטיים
 - `src/lib/reminders/` – מנוע תזכורות: `recurrence.ts` (מופעים/מצב), `hebrew.ts`, `dates.ts`, `actions.ts`, `donorAuto.ts` (תזכורות אוטומטיות + `donor_yahrzeits`)
 - `src/lib/email/` – `templates.ts` (משותף), `server.ts` (**צד שרת בלבד**, Gmail/nodemailer); `src/lib/server-auth.ts` – בדיקת הרשאה ב-API
+- `src/lib/import/donorMatch.ts` – נרמול טלפון/ת"ז/מייל, התאמת תורם מיובא, מציאת כפילויות (קוד טהור, דפדפן + שרת)
+- `src/lib/nedarim/` – `adapter.ts` (**המקום היחיד** עם שמות השדות וה-API של נדרים פלוס – לאמת מול התיעוד הרשמי),
+  `importer.ts` (**צד שרת בלבד**: ייבוא עסקאות/הוראות קבע, תור "לבדיקה", `runNedarimSync`)
+- API: `/api/admin/nedarim` (manage_users), `/api/nedarim/callback?key=` (נדרים שולחים עסקאות; מוגן במפתח סודי),
+  `/api/import-review` (donors_merge); `src/lib/apiClient.ts` – `callServerApi` מהדפדפן עם הטוקן
+- `src/components/donors/duplicates/` – חלון "בירור כפילויות" בלשונית התורמים (מיזוג = `rpc('merge_donors')`)
 - `src/components/DateInput.tsx` – שדה תאריך DD/MM/YYYY. **לא משתמשים ב-`type="date"`**
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`
 - `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`, `Reminder`
@@ -48,9 +54,11 @@
 - `supabase/migrations/` – כל שינוי במסד הנתונים, לפי סדר
 
 ## מסד נתונים ואבטחה
-- טבלאות: `donors`, `donations`, `donor_documents`, `donor_yahrzeits`, `reminders`, `email_settings`, `email_secrets` (רק service_role), `email_outbox`, `user_profiles` (id = auth.users.id, role_id),
+- טבלאות: `donors` (כולל `zeout`), `donations` (כולל `external_source/external_id` – ייחודי), `donor_documents`, `donor_yahrzeits`, `reminders`, `email_settings`, `email_secrets` (רק service_role), `email_outbox`,
+  `recurring_donations` (הוראות קבע), `import_review` (תור לבדיקה), `donor_duplicate_dismissals`, `integration_settings`, `integration_secrets` (רק service_role), `user_profiles` (id = auth.users.id, role_id),
   `roles` (name, permissions JSONB, denied_display JSONB), `audit_logs`.
 - `roles.denied_display` = `{perm: 'locked'}` להרשאות אסורות שמוצגות חסומות; חסר = מוסתר. תצוגה בלבד, לא אבטחה.
+- מחיקת תורם מוחקת את התרומות שלו (cascade) – מיזוג רק דרך הפונקציה `merge_donors` (פעולה אחת שלמה).
 - **RLS פעיל על כל הטבלאות.** כל מדיניות משתמשת ב-`public.has_permission('<perm>')`, שקוראת את
   `roles.permissions` של המשתמש המחובר. `anon` חסום לגמרי.
 - `user_profiles`/`roles` – כתיבה רק עם `manage_users`. `audit_logs` – הוספה בשם המשתמש עצמו בלבד, אין עריכה/מחיקה.
@@ -61,7 +69,7 @@
 
 ## הרשאות (מפתחות ב-`roles.permissions`)
 view_dashboard, manage_users, manage_roles,
-donors_view / donors_create / donors_edit / donors_edit_contact / donors_delete / donors_export / donors_view_contact,
+donors_view / donors_create / donors_edit / donors_edit_contact / donors_delete / donors_export / donors_view_contact / donors_merge,
 donations_view / donations_create / donations_edit / donations_delete / donations_export / donations_view_amount,
 documents_view / documents_upload / documents_delete,
 reminders_view / reminders_create / reminders_edit / reminders_delete.

@@ -282,6 +282,14 @@ export default function DonationsTable({
                               -
                             </span>
                           )}
+                          {donation.external_source === 'nedarim' && (
+                            <span
+                              className="inline-flex mt-1 mr-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200"
+                              title={donation.external_id ? `מספר עסקה בנדרים פלוס: ${donation.external_id}` : undefined}
+                            >
+                              נדרים פלוס
+                            </span>
+                          )}
                         </td>
 
                         <td className="p-3.5">

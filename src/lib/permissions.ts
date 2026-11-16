@@ -36,6 +36,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { id: 'donors_export', label: 'ייצוא תורמים לאקסל', kind: 'action' },
       { id: 'donors_view_contact', label: 'צפייה בפרטי התקשרות (טלפונים, אימייל, כתובת)', kind: 'view' },
       { id: 'donors_edit_contact', label: 'עריכת פרטי התקשרות', kind: 'action' },
+      { id: 'donors_merge', label: 'בירור כפילויות ומיזוג תורמים (כולל תורמים מיובאים לבדיקה)', kind: 'action' },
     ],
   },
   {

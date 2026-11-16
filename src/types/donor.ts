@@ -23,6 +23,8 @@ export interface Donor {
   last_name_he: string | null;
   first_name_en: string | null;
   last_name_en: string | null;
+  /** תעודת זהות (9 ספרות) – לזיהוי בייבוא */
+  zeout?: string | null;
   phone_1: string | null;
   phone_2: string | null;
   email: string | null;
@@ -57,6 +59,11 @@ export interface Donation {
   receipt_number: string | null;
   notes: string | null;
   file_url: string | null;
+  /** מקור חיצוני (nedarim) ומספר העסקה שם – לתרומות מיובאות */
+  external_source?: string | null;
+  external_id?: string | null;
+  installments?: number | null;
+  category?: string | null;
   attachments?: Attachment[];
   created_at: string | null;
 }

@@ -731,6 +731,7 @@ function DashboardContent() {
               onCreateDonor={handleOpenCreateDonor}
               onViewDonor={handleOpenViewDonor}
               onAddDonation={handleOpenAddDonation}
+              onRefresh={fetchData}
             />
           )}
 

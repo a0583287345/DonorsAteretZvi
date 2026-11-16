@@ -49,6 +49,12 @@ export type Database = {
       }
       donations: {
         Row: {
+          external_source: string | null
+          external_id: string | null
+          installments: number | null
+          category: string | null
+          recurring_external_id: string | null
+          imported_at: string | null
           amount: number
           created_at: string | null
           currency: string | null
@@ -61,6 +67,12 @@ export type Database = {
           receipt_number: string | null
         }
         Insert: {
+          external_source?: string | null
+          external_id?: string | null
+          installments?: number | null
+          category?: string | null
+          recurring_external_id?: string | null
+          imported_at?: string | null
           amount: number
           created_at?: string | null
           currency?: string | null
@@ -73,6 +85,12 @@ export type Database = {
           receipt_number?: string | null
         }
         Update: {
+          external_source?: string | null
+          external_id?: string | null
+          installments?: number | null
+          category?: string | null
+          recurring_external_id?: string | null
+          imported_at?: string | null
           amount?: number
           created_at?: string | null
           currency?: string | null
@@ -273,6 +291,7 @@ export type Database = {
       }
       donors: {
         Row: {
+          zeout: string | null
           birthday: string | null
           city: string | null
           connected_contact: string | null
@@ -299,6 +318,7 @@ export type Database = {
           yahrzeit_of: string | null
         }
         Insert: {
+          zeout?: string | null
           birthday?: string | null
           city?: string | null
           connected_contact?: string | null
@@ -325,6 +345,7 @@ export type Database = {
           yahrzeit_of?: string | null
         }
         Update: {
+          zeout?: string | null
           birthday?: string | null
           city?: string | null
           connected_contact?: string | null
@@ -465,6 +486,186 @@ export type Database = {
           },
         ]
       }
+      recurring_donations: {
+        Row: {
+          amount: number
+          charge_day: number | null
+          created_at: string
+          currency: string
+          donor_id: string | null
+          external_id: string | null
+          external_source: string | null
+          id: string
+          last_synced_at: string | null
+          months_remaining: number | null
+          months_total: number | null
+          next_charge_date: string | null
+          notes: string | null
+          payment_method: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          charge_day?: number | null
+          created_at?: string
+          currency?: string
+          donor_id?: string | null
+          external_id?: string | null
+          external_source?: string | null
+          id?: string
+          last_synced_at?: string | null
+          months_remaining?: number | null
+          months_total?: number | null
+          next_charge_date?: string | null
+          notes?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          charge_day?: number | null
+          created_at?: string
+          currency?: string
+          donor_id?: string | null
+          external_id?: string | null
+          external_source?: string | null
+          id?: string
+          last_synced_at?: string | null
+          months_remaining?: number | null
+          months_total?: number | null
+          next_charge_date?: string | null
+          notes?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      import_review: {
+        Row: {
+          candidate_donor_ids: string[]
+          created_at: string
+          external_id: string | null
+          id: string
+          incoming_donor: Json
+          incoming_payload: Json | null
+          payload_kind: string | null
+          reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_donor_id: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          candidate_donor_ids?: string[]
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          incoming_donor: Json
+          incoming_payload?: Json | null
+          payload_kind?: string | null
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_donor_id?: string | null
+          source?: string
+          status?: string
+        }
+        Update: {
+          candidate_donor_ids?: string[]
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          incoming_donor?: Json
+          incoming_payload?: Json | null
+          payload_kind?: string | null
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_donor_id?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      donor_duplicate_dismissals: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          donor_a: string
+          donor_b: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          donor_a: string
+          donor_b: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          donor_a?: string
+          donor_b?: string
+        }
+        Relationships: []
+      }
+      integration_settings: {
+        Row: {
+          enabled: boolean
+          last_history_id: string | null
+          last_sync_at: string | null
+          last_sync_result: Json | null
+          mosad_id: string | null
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          last_history_id?: string | null
+          last_sync_at?: string | null
+          last_sync_result?: Json | null
+          mosad_id?: string | null
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          last_history_id?: string | null
+          last_sync_at?: string | null
+          last_sync_result?: Json | null
+          mosad_id?: string | null
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      integration_secrets: {
+        Row: {
+          api_password: string | null
+          callback_key: string | null
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_password?: string | null
+          callback_key?: string | null
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_password?: string | null
+          callback_key?: string | null
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
           created_at: string | null
@@ -527,6 +728,7 @@ export type Database = {
     }
     Functions: {
       has_permission: { Args: { p: string }; Returns: boolean }
+      merge_donors: { Args: { p_keep: string; p_remove: string }; Returns: undefined }
       my_role_id: { Args: never; Returns: string }
     }
     Enums: {
