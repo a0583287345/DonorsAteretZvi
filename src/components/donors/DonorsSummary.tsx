@@ -11,10 +11,11 @@ export default function DonorsSummary({ filters, totalCount }: { filters: DonorF
     filteredRecurringCount,
     filteredYissacharZevulunCount,
     hasActiveFilters,
+    resetFilters,
   } = filters;
 
   return (
-    <FilterSummary filtered={hasActiveFilters}>
+    <FilterSummary filtered={hasActiveFilters} onClear={resetFilters}>
       <SummaryCard
         label="מספר תורמים"
         value={<span className="text-blue-700">{filteredDonors.length}</span>}

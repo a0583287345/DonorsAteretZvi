@@ -54,14 +54,9 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
       ====================================================== */}
 
       <div
-        className="
-          bg-slate-50
-          rounded-2xl
-          border
-          border-slate-200
-          p-4
-          space-y-3
-        "
+        className={`bg-slate-50 rounded-2xl border p-4 space-y-3 ${
+          hasActiveDonationFilters ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
+        }`}
       >
         <div
           className="

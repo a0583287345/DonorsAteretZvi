@@ -14,6 +14,7 @@ type Props = {
   amountAccess: PermissionAccess;
   /** האם יש סינון פעיל */
   filtered: boolean;
+  onClear: () => void;
 };
 
 /** כרטיסי סיכום מעל טבלת התרומות – לפי הסינון הנוכחי */
@@ -24,6 +25,7 @@ export default function DonationsSummary({
   totalsByCurrency,
   amountAccess,
   filtered,
+  onClear,
 }: Props) {
   // ILS קודם, אחריו שאר המטבעות לפי סדר אלפביתי
   const currencies = Object.keys(totalsByCurrency).sort((a, b) =>
@@ -31,7 +33,7 @@ export default function DonationsSummary({
   );
 
   return (
-    <FilterSummary filtered={filtered}>
+    <FilterSummary filtered={filtered} onClear={onClear}>
       <SummaryCard
         label="מספר תרומות"
         value={<span className="text-slate-800">{filteredCount}</span>}

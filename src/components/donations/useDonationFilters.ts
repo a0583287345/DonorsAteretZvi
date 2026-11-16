@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { Donation, Donor } from '@/types/donor';
-import { getPaymentMethodLabel, type DonationSort, type YesNoAll } from './donationUtils';
+import { usePersistentState } from '@/hooks/usePersistentState';
+import {
+  getDonationSortOptions,
+  getPaymentMethodLabel,
+  type DonationSort,
+  type YesNoAll,
+} from './donationUtils';
+
+const YES_NO_ALL: readonly YesNoAll[] = ['all', 'yes', 'no'];
+const DONATION_SORTS = getDonationSortOptions(true).map((o) => o.value);
 
 type Options = {
   donations: Donation[];
@@ -24,19 +33,19 @@ export function useDonationFilters({
   canViewAmount,
   canViewContact,
 }: Options) {
-  const [donationSearch, setDonationSearch] = useState('');
-  const [donationCurrency, setDonationCurrency] = useState('all');
-  const [donationPaymentMethod, setDonationPaymentMethod] = useState('all');
-  const [donationDonorId, setDonationDonorId] = useState('all');
-  const [donationMinAmount, setDonationMinAmount] = useState('');
-  const [donationMaxAmount, setDonationMaxAmount] = useState('');
-  const [donationDateFrom, setDonationDateFrom] = useState('');
-  const [donationDateTo, setDonationDateTo] = useState('');
-  const [donationHasReceipt, setDonationHasReceipt] = useState<YesNoAll>('all');
-  const [donationHasFile, setDonationHasFile] = useState<YesNoAll>('all');
-  const [donationHasNotes, setDonationHasNotes] = useState<YesNoAll>('all');
+  const [donationSearch, setDonationSearch] = usePersistentState<string>('donations.donationSearch', '');
+  const [donationCurrency, setDonationCurrency] = usePersistentState<string>('donations.donationCurrency', 'all');
+  const [donationPaymentMethod, setDonationPaymentMethod] = usePersistentState<string>('donations.donationPaymentMethod', 'all');
+  const [donationDonorId, setDonationDonorId] = usePersistentState<string>('donations.donationDonorId', 'all');
+  const [donationMinAmount, setDonationMinAmount] = usePersistentState<string>('donations.donationMinAmount', '');
+  const [donationMaxAmount, setDonationMaxAmount] = usePersistentState<string>('donations.donationMaxAmount', '');
+  const [donationDateFrom, setDonationDateFrom] = usePersistentState<string>('donations.donationDateFrom', '');
+  const [donationDateTo, setDonationDateTo] = usePersistentState<string>('donations.donationDateTo', '');
+  const [donationHasReceipt, setDonationHasReceipt] = usePersistentState<YesNoAll>('donations.donationHasReceipt', 'all', YES_NO_ALL);
+  const [donationHasFile, setDonationHasFile] = usePersistentState<YesNoAll>('donations.donationHasFile', 'all', YES_NO_ALL);
+  const [donationHasNotes, setDonationHasNotes] = usePersistentState<YesNoAll>('donations.donationHasNotes', 'all', YES_NO_ALL);
   // ברירת מחדל: לפי תאריך יצירת הרשומה, חדש → ישן
-  const [donationSort, setDonationSort] = useState<DonationSort>('created_desc');
+  const [donationSort, setDonationSort] = usePersistentState<DonationSort>('donations.sort', 'created_desc', DONATION_SORTS);
   const [showAdvancedDonationFilters, setShowAdvancedDonationFilters] = useState(false);
 
   const donationCurrencies = useMemo(
@@ -177,8 +186,7 @@ export function useDonationFilters({
     donationCurrency !== 'all' ||
     donationPaymentMethod !== 'all' ||
     donationDonorId !== 'all' ||
-    donationMinAmount !== '' ||
-    donationMaxAmount !== '' ||
+    (canViewAmount && (donationMinAmount !== '' || donationMaxAmount !== '')) ||
     donationDateFrom !== '' ||
     donationDateTo !== '' ||
     donationHasReceipt !== 'all' ||

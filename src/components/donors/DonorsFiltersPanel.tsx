@@ -39,6 +39,7 @@ export default function DonorsFiltersPanel({ filters, canViewContact }: Props) {
     streets,
     contacts,
     resetFilters,
+    hasActiveFilters,
   } = filters;
 
   return (
@@ -46,14 +47,9 @@ export default function DonorsFiltersPanel({ filters, canViewContact }: Props) {
       {/* חיפוש וסינון */}
 
       <div
-        className="
-          bg-slate-50
-          p-3
-          rounded-2xl
-          border
-          border-slate-200
-          space-y-3
-        "
+        className={`bg-slate-50 p-3 rounded-2xl border space-y-3 ${
+          hasActiveFilters ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
+        }`}
       >
         <div className="flex flex-col xl:flex-row gap-2.5">
           <div className="relative flex-1">

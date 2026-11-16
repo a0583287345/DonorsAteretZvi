@@ -229,6 +229,7 @@ export default function DonationsTab({
         totalsByCurrency={filters.filteredDonationTotals}
         amountAccess={amountAccess}
         filtered={filters.hasActiveDonationFilters}
+        onClear={filters.clearDonationFilters}
       />
 
       <SortSelect

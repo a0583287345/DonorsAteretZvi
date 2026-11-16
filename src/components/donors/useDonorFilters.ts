@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Donation, Donor } from '@/types/donor';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 export type DonorSort =
   | 'created_desc'
@@ -27,6 +28,8 @@ export function getDonorSortOptions(canViewContact: boolean): { value: DonorSort
   ];
 }
 
+const DONOR_SORTS = getDonorSortOptions(true).map((o) => o.value);
+
 const time = (value: string | null | undefined) => (value ? new Date(value).getTime() : 0);
 const compareHe = (a: string | null | undefined, b: string | null | undefined) => {
   // ריקים תמיד בסוף
@@ -47,17 +50,17 @@ const has = (value: string | null | undefined, query: string) =>
  * בלי הרשאה לראות פרטי התקשרות – לא מחפשים ולא מסננים לפי טלפון, אימייל וכתובת.
  */
 export function useDonorFilters(donors: Donor[], donations: Donation[], canViewContact: boolean) {
-  const [sort, setSort] = useState<DonorSort>('created_desc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [countryFilter, setCountryFilter] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [streetFilter, setStreetFilter] = useState('');
-  const [contactFilter, setContactFilter] = useState('');
-  const [recurringFilter, setRecurringFilter] = useState('');
-  const [yissacharFilter, setYissacharFilter] = useState('');
-  const [emailFilter, setEmailFilter] = useState('');
-  const [phoneFilter, setPhoneFilter] = useState('');
-  const [notesFilter, setNotesFilter] = useState('');
+  const [sort, setSort] = usePersistentState<DonorSort>('donors.sort', 'created_desc', DONOR_SORTS);
+  const [searchQuery, setSearchQuery] = usePersistentState<string>('donors.searchQuery', '');
+  const [countryFilter, setCountryFilter] = usePersistentState<string>('donors.countryFilter', '');
+  const [cityFilter, setCityFilter] = usePersistentState<string>('donors.cityFilter', '');
+  const [streetFilter, setStreetFilter] = usePersistentState<string>('donors.streetFilter', '');
+  const [contactFilter, setContactFilter] = usePersistentState<string>('donors.contactFilter', '');
+  const [recurringFilter, setRecurringFilter] = usePersistentState<string>('donors.recurringFilter', '', ['', 'yes', 'no'] as const);
+  const [yissacharFilter, setYissacharFilter] = usePersistentState<string>('donors.yissacharFilter', '', ['', 'yes', 'no'] as const);
+  const [emailFilter, setEmailFilter] = usePersistentState<string>('donors.emailFilter', '');
+  const [phoneFilter, setPhoneFilter] = usePersistentState<string>('donors.phoneFilter', '');
+  const [notesFilter, setNotesFilter] = usePersistentState<string>('donors.notesFilter', '');
   const [showFilters, setShowFilters] = useState(false);
 
   const countries = useMemo(() => uniqueSorted(donors.map((d) => d.country)), [donors]);
@@ -192,17 +195,20 @@ export function useDonorFilters(donors: Donor[], donations: Donation[], canViewC
     [filteredDonors, donationStats]
   );
 
+  // סינון שנשמר מהפעם הקודמת – חשוב לסמן שהוא פעיל.
+  // סינוני פרטי התקשרות נחשבים רק כשיש הרשאה (בלעדיה הם לא מופעלים)
   const hasActiveFilters =
     searchQuery !== '' ||
-    countryFilter !== '' ||
-    cityFilter !== '' ||
-    streetFilter !== '' ||
     contactFilter !== '' ||
     recurringFilter !== '' ||
     yissacharFilter !== '' ||
-    emailFilter !== '' ||
-    phoneFilter !== '' ||
-    notesFilter !== '';
+    notesFilter !== '' ||
+    (canViewContact &&
+      (countryFilter !== '' ||
+        cityFilter !== '' ||
+        streetFilter !== '' ||
+        emailFilter !== '' ||
+        phoneFilter !== ''));
 
   const filteredRecurringCount = useMemo(
     () => filteredDonors.filter((d) => d.is_recurring).length,
