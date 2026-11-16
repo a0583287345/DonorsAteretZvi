@@ -2,19 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Donor } from '@/types/donor';
+import type { Donation, Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { UserPlus, Download, GitMerge } from 'lucide-react';
 import DuplicatesModal from './donors/duplicates/DuplicatesModal';
 import { exportDonorsToExcel } from './donors/donorUtils';
-import { useDonorFilters } from './donors/useDonorFilters';
+import { getDonorSortOptions, useDonorFilters } from './donors/useDonorFilters';
 import DonorsFiltersPanel from './donors/DonorsFiltersPanel';
+import DonorsSummary from './donors/DonorsSummary';
+import SortSelect from '@/components/SortSelect';
 import DonorsTable from './donors/DonorsTable';
 import NavigationPicker from './donors/NavigationPicker';
 
 interface DonorsTabProps {
   donors: Donor[];
+  /** לצורך מיון לפי תרומה אחרונה / מספר תרומות */
+  donations: Donation[];
   loading: boolean;
   onCreateDonor: () => void;
   onViewDonor: (donor: Donor) => void;
@@ -26,6 +30,7 @@ interface DonorsTabProps {
 /** לשונית התורמים: כותרת, חיפוש וסינון, טבלה וחלון ניווט */
 export default function DonorsTab({
   donors,
+  donations,
   loading,
   onCreateDonor,
   onViewDonor,
@@ -39,7 +44,7 @@ export default function DonorsTab({
   const showContactColumns = contactAccess !== 'hidden';
   const canViewContact = contactAccess === 'allowed';
 
-  const filters = useDonorFilters(donors, canViewContact);
+  const filters = useDonorFilters(donors, donations, canViewContact);
   const { filteredDonors } = filters;
 
   // כתובת שנבחרה לניווט (פותח חלון בחירת אפליקציה)
@@ -181,6 +186,15 @@ export default function DonorsTab({
 
 
       <DonorsFiltersPanel filters={filters} canViewContact={canViewContact} />
+
+      <DonorsSummary filters={filters} totalCount={donors.length} />
+
+      <SortSelect
+        value={filters.sort}
+        onChange={filters.setSort}
+        options={getDonorSortOptions(canViewContact)}
+        info={`מציג ${filteredDonors.length} תורמים`}
+      />
 
       <DonorsTable
         donors={donors}

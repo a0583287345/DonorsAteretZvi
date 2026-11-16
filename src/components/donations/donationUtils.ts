@@ -22,6 +22,24 @@ export type DonationSort =
   | 'donor_asc'
   | 'donor_desc';
 
+/** אפשרויות המיון. בלי הרשאה לסכומים – בלי מיון לפי סכום */
+export function getDonationSortOptions(canViewAmount: boolean): { value: DonationSort; label: string }[] {
+  return [
+    { value: 'date_desc', label: 'תאריך תרומה: מהחדש לישן' },
+    { value: 'date_asc', label: 'תאריך תרומה: מהישן לחדש' },
+    { value: 'created_desc', label: 'נוספה למערכת: מהחדש לישן' },
+    { value: 'created_asc', label: 'נוספה למערכת: מהישן לחדש' },
+    ...(canViewAmount
+      ? [
+          { value: 'amount_desc' as const, label: 'סכום: מהגבוה לנמוך' },
+          { value: 'amount_asc' as const, label: 'סכום: מהנמוך לגבוה' },
+        ]
+      : []),
+    { value: 'donor_asc', label: 'שם תורם: א → ת' },
+    { value: 'donor_desc', label: 'שם תורם: ת → א' },
+  ];
+}
+
 export type YesNoAll = 'all' | 'yes' | 'no';
 
 // הערכים במסד הנתונים נשארים באנגלית

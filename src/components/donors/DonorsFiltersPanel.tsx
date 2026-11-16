@@ -9,7 +9,7 @@ type Props = {
   canViewContact: boolean;
 };
 
-/** חיפוש, סינון וסטטיסטיקה של רשימת התורמים */
+/** חיפוש וסינון של רשימת התורמים */
 export default function DonorsFiltersPanel({ filters, canViewContact }: Props) {
   const {
     searchQuery,
@@ -39,9 +39,6 @@ export default function DonorsFiltersPanel({ filters, canViewContact }: Props) {
     streets,
     contacts,
     resetFilters,
-    filteredDonors,
-    filteredRecurringCount,
-    filteredYissacharZevulunCount,
   } = filters;
 
   return (
@@ -428,57 +425,6 @@ export default function DonorsFiltersPanel({ filters, canViewContact }: Props) {
             </div>
           </div>
         )}
-
-        {/* סטטיסטיקה */}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="
-              px-3
-              py-1.5
-              rounded-lg
-              bg-blue-50
-              text-blue-700
-              border
-              border-blue-100
-              text-xs
-              font-medium
-            "
-          >
-            נמצאו {filteredDonors.length} תורמים
-          </span>
-
-          <span
-            className="
-              px-3
-              py-1.5
-              rounded-lg
-              bg-emerald-50
-              text-emerald-700
-              border
-              border-emerald-100
-              text-xs
-            "
-          >
-            הו&quot;ק: {filteredRecurringCount}
-          </span>
-
-          <span
-            className="
-              px-3
-              py-1.5
-              rounded-lg
-              bg-amber-50
-              text-amber-700
-              border
-              border-amber-100
-              text-xs
-            "
-          >
-            יששכר וזבולון:{' '}
-            {filteredYissacharZevulunCount}
-          </span>
-        </div>
       </div>
 
     </>

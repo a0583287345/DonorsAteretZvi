@@ -765,6 +765,7 @@ function DashboardContent() {
           {activeTab === 'donors' && (
             <DonorsTab
               donors={donors}
+              donations={donations}
               loading={loading}
               onCreateDonor={handleOpenCreateDonor}
               onViewDonor={handleOpenViewDonor}

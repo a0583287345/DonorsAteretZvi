@@ -170,7 +170,6 @@ export function useDonationFilters({
     setDonationHasReceipt('all');
     setDonationHasFile('all');
     setDonationHasNotes('all');
-    setDonationSort('created_desc');
   }
 
   const hasActiveDonationFilters =

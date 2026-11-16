@@ -3,14 +3,14 @@
 import { Search, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import DateInput from '@/components/DateInput';
 import type { Donor } from '@/types/donor';
-import { getPaymentMethodLabel, type DonationSort } from './donationUtils';
+import { getPaymentMethodLabel } from './donationUtils';
 import type { DonationFilters } from './useDonationFilters';
 
 type Props = {
   filters: DonationFilters;
   donors: Donor[];
   getDonorName: (donorId: string | null) => string;
-  /** בלי הרשאה לראות סכומים – לא מציגים סינון/מיון לפי סכום */
+  /** בלי הרשאה לראות סכומים – לא מציגים סינון לפי סכום */
   canViewAmount: boolean;
 };
 
@@ -39,8 +39,6 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
     setDonationHasFile,
     donationHasNotes,
     setDonationHasNotes,
-    donationSort,
-    setDonationSort,
     showAdvancedDonationFilters,
     setShowAdvancedDonationFilters,
     donationCurrencies,
@@ -178,8 +176,8 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
           className="
             grid
             grid-cols-2
-            md:grid-cols-4
-            lg:grid-cols-6
+            md:grid-cols-3
+            lg:grid-cols-5
             gap-2
           "
         >
@@ -295,61 +293,6 @@ export default function DonationsFiltersPanel({ filters, donors, getDonorName, c
                   )}
                 </option>
               ))}
-          </select>
-
-          <select
-            value={donationSort}
-            onChange={(e) =>
-              setDonationSort(
-                e.target.value as DonationSort
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="created_desc">
-              נוצרה: חדש → ישן
-            </option>
-
-            <option value="created_asc">
-              נוצרה: ישן → חדש
-            </option>
-
-            <option value="date_desc">
-              תאריך תרומה: חדש → ישן
-            </option>
-
-            <option value="date_asc">
-              תאריך תרומה: ישן → חדש
-            </option>
-
-            {canViewAmount && (
-              <>
-                <option value="amount_desc">
-                  סכום: גבוה → נמוך
-                </option>
-
-                <option value="amount_asc">
-                  סכום: נמוך → גבוה
-                </option>
-              </>
-            )}
-
-            <option value="donor_asc">
-              תורם: א → ת
-            </option>
-
-            <option value="donor_desc">
-              תורם: ת → א
-            </option>
           </select>
 
           <select

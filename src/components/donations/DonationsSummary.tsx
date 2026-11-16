@@ -2,6 +2,7 @@
 
 import type { PermissionAccess } from '@/lib/permissions';
 import { LockedText } from '@/components/Protect';
+import FilterSummary, { SummaryCard } from '@/components/FilterSummary';
 import { formatNumber } from './donationUtils';
 
 type Props = {
@@ -11,25 +12,18 @@ type Props = {
   /** סכום לכל מטבע בנפרד – לא מחברים מטבעות שונים */
   totalsByCurrency: Record<string, number>;
   amountAccess: PermissionAccess;
+  /** האם יש סינון פעיל */
+  filtered: boolean;
 };
 
-function Card({ label, value, note }: { label: string; value: React.ReactNode; note: string }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4">
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
-      <div className="text-[10px] text-slate-400 mt-1">{note}</div>
-    </div>
-  );
-}
-
-/** כרטיסי סיכום מעל טבלת התרומות */
+/** כרטיסי סיכום מעל טבלת התרומות – לפי הסינון הנוכחי */
 export default function DonationsSummary({
   filteredCount,
   totalCount,
   donorCount,
   totalsByCurrency,
   amountAccess,
+  filtered,
 }: Props) {
   // ILS קודם, אחריו שאר המטבעות לפי סדר אלפביתי
   const currencies = Object.keys(totalsByCurrency).sort((a, b) =>
@@ -37,32 +31,29 @@ export default function DonationsSummary({
   );
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <Card
+    <FilterSummary filtered={filtered}>
+      <SummaryCard
         label="מספר תרומות"
         value={<span className="text-slate-800">{filteredCount}</span>}
         note={`מתוך ${totalCount} תרומות`}
       />
 
-      <Card
+      <SummaryCard
         label="מספר תורמים"
         value={<span className="text-slate-800">{donorCount}</span>}
-        note="תורמים ייחודיים לפי הסינון הנוכחי"
+        note="תורמים ייחודיים"
       />
 
-      {amountAccess === 'locked' && (
-        <Card label='סה"כ' value={<LockedText />} note="לפי הסינון הנוכחי" />
-      )}
+      {amountAccess === 'locked' && <SummaryCard label='סה"כ' value={<LockedText />} />}
 
       {amountAccess === 'allowed' &&
         currencies.map((currency) => (
-          <Card
+          <SummaryCard
             key={currency}
             label={`סה"כ ${currency}`}
             value={<span className="text-emerald-600">{formatNumber(totalsByCurrency[currency])}</span>}
-            note="לפי הסינון הנוכחי"
           />
         ))}
-    </div>
+    </FilterSummary>
   );
 }

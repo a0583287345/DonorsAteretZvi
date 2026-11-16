@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Heebo, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { AuthProvider } from "@/components/AuthContext";
 import { Toaster } from "@/components/Toaster";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// פונט עברי נוח לקריאה
+const heebo = Heebo({
+  variable: "--font-heebo",
+  subsets: ["hebrew", "latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -26,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="he"
       dir="rtl"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${heebo.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AuthProvider>

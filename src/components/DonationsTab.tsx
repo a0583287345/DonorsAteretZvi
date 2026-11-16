@@ -5,7 +5,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { toast } from '@/components/Toaster';
 import { PlusCircle, Download, RefreshCw } from 'lucide-react';
-import { downloadCsv, getPaymentMethodLabel } from './donations/donationUtils';
+import SortSelect from '@/components/SortSelect';
+import { downloadCsv, getDonationSortOptions, getPaymentMethodLabel } from './donations/donationUtils';
 import { useDonationDocuments } from './donations/useDonationDocuments';
 import { useDonationFilters } from './donations/useDonationFilters';
 import DonationsFiltersPanel from './donations/DonationsFiltersPanel';
@@ -227,6 +228,14 @@ export default function DonationsTab({
         donorCount={filters.filteredDonationDonorCount}
         totalsByCurrency={filters.filteredDonationTotals}
         amountAccess={amountAccess}
+        filtered={filters.hasActiveDonationFilters}
+      />
+
+      <SortSelect
+        value={filters.donationSort}
+        onChange={filters.setDonationSort}
+        options={getDonationSortOptions(canViewAmount)}
+        info={`מציג ${filteredDonations.length} תרומות`}
       />
 
       <DonationsTable
