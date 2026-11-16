@@ -45,7 +45,8 @@
 - `src/lib/reminders/` – מנוע תזכורות: `recurrence.ts` (מופעים/מצב), `hebrew.ts`, `dates.ts`, `actions.ts`, `donorAuto.ts` (תזכורות אוטומטיות + `donor_yahrzeits`)
 - `src/lib/email/` – `templates.ts` (משותף), `server.ts` (**צד שרת בלבד**, Gmail/nodemailer); `src/lib/server-auth.ts` – בדיקת הרשאה ב-API
 - `src/lib/import/donorMatch.ts` – נרמול טלפון/ת"ז/מייל, התאמת תורם מיובא, מציאת כפילויות (קוד טהור, דפדפן + שרת)
-- `src/lib/nedarim/` – `adapter.ts` (**המקום היחיד** עם שמות השדות וה-API של נדרים פלוס – לאמת מול התיעוד הרשמי),
+- `src/lib/nedarim/` – `adapter.ts` (**המקום היחיד** עם שמות השדות וה-API של נדרים פלוס, אומת מול `docs/NedarimPlus-API.md`;
+  GetHistoryJson/GetKevaJson מוגבלים ל-20 פניות בשעה; Webhook אחד לעסקאות/הוראות/סירובים + חתימת HMAC),
   `importer.ts` (**צד שרת בלבד**: ייבוא עסקאות/הוראות קבע, תור "לבדיקה", `runNedarimSync`)
 - API: `/api/admin/nedarim` (manage_users), `/api/nedarim/callback?key=` (נדרים שולחים עסקאות; מוגן במפתח סודי),
   `/api/import-review` (donors_merge); `src/lib/apiClient.ts` – `callServerApi` מהדפדפן עם הטוקן

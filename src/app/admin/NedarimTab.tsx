@@ -19,6 +19,16 @@ type SyncSummary = {
   recurring: Counts;
   morePending: boolean;
 };
+type Webhooks = {
+  transactionUrl: string;
+  kevaUrl: string;
+  refusalUrl: string;
+  signatureEnabled: boolean;
+  secretHint: string;
+};
+type Conflict = { type: string; existing: string };
+const WEBHOOK_LABELS: Record<string, string> = { Transaction: 'עסקאות', Keva: 'הקמת הוראת קבע', Siruv: 'סירובים' };
+
 type Status = {
   enabled: boolean;
   mosadId: string | null;
@@ -59,6 +69,7 @@ export default function NedarimTab() {
   const [enabled, setEnabled] = useState(false);
   const [mosadId, setMosadId] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [webhooks, setWebhooks] = useState<Webhooks | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -114,8 +125,28 @@ export default function NedarimTab() {
 
   const test = () =>
     run('test', async () => {
-      const r = await api<{ rows: number }>('test');
-      toast.success(`החיבור תקין – ${r.rows} עסקאות ממתינות לייבוא`);
+      const r = await api<{ webhooks: Webhooks }>('test');
+      setWebhooks(r.webhooks);
+      toast.success('החיבור לנדרים פלוס תקין');
+    });
+
+  const setupWebhooks = (force = false) =>
+    run('setup', async () => {
+      const r = await api<{ success: boolean; conflicts?: Conflict[]; webhooks?: Webhooks }>('setup_webhooks', {
+        origin: window.location.origin,
+        force,
+      });
+      if (!r.success && r.conflicts?.length) {
+        const list = r.conflicts.map((c) => `${WEBHOOK_LABELS[c.type] ?? c.type}: ${c.existing}`).join('\n');
+        const question = `בנדרים פלוס כבר מוגדרות כתובות אחרות:\n${list}\n\nלהחליף אותן בכתובת של המערכת? (הכתובות הקודמות יפסיקו לקבל עדכונים)`;
+        if (window.confirm(question)) {
+          setBusy(null);
+          await setupWebhooks(true);
+        }
+        return;
+      }
+      if (r.webhooks) setWebhooks(r.webhooks);
+      toast.success('העדכונים המיידיים הוגדרו בנדרים פלוס, כולל חתימה');
     });
 
   const syncNow = () =>
@@ -136,9 +167,9 @@ export default function NedarimTab() {
 
   const newKey = () =>
     run('key', async () => {
-      if (!window.confirm('ליצור כתובת חדשה? הכתובת הקודמת תפסיק לעבוד ויהיה צריך לעדכן אותה בנדרים פלוס.')) return;
+      if (!window.confirm('ליצור כתובת חדשה? הכתובת הקודמת תפסיק לעבוד – אחר כך יש ללחוץ שוב "הגדרה אוטומטית בנדרים פלוס".')) return;
       await api('new_key');
-      toast.success('נוצרה כתובת חדשה – יש לעדכן אותה בנדרים פלוס');
+      toast.success('נוצרה כתובת חדשה – יש ללחוץ "הגדרה אוטומטית בנדרים פלוס"');
       await load();
     });
 
@@ -300,8 +331,43 @@ export default function NedarimTab() {
             עדכון מיידי (Callback)
           </h3>
           <p className="text-sm text-slate-600">
-            כדי שכל תרומה תיכנס למערכת מיד כשהיא מתבצעת, יש להעתיק את הכתובת הזו ולהדביק אותה בנדרים פלוס בהגדרות
-            המוסד, בשדה כתובת ה-Callback (שליחת עסקאות לכתובת).
+            נדרים פלוס שולחים למערכת עדכון מיידי על כל תרומה, על הקמת הוראת קבע ועל סירוב חיוב (הוראה שנכשלה מסומנת
+            ונוצרת תזכורת). הכפתור רושם את הכתובת בנדרים פלוס ומפעיל חתימה דיגיטלית, כך שאי אפשר לזייף עדכון.
+          </p>
+          <button
+            onClick={() => void setupWebhooks(false)}
+            disabled={!ready || busy === 'setup'}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold disabled:opacity-50"
+          >
+            {busy === 'setup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlugZap className="w-4 h-4" />}
+            הגדרה אוטומטית בנדרים פלוס
+          </button>
+          {webhooks && callbackUrl && (
+            <ul className="text-xs space-y-1 bg-slate-50 rounded-xl p-3">
+              {([
+                ['Transaction', webhooks.transactionUrl],
+                ['Keva', webhooks.kevaUrl],
+                ['Siruv', webhooks.refusalUrl],
+              ] as const).map(([type, url]) => {
+                const ours = url === callbackUrl;
+                return (
+                  <li key={type} className="flex items-center gap-1.5">
+                    {ours ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <XCircle className="w-4 h-4 text-amber-600" />}
+                    <span className="font-medium">{WEBHOOK_LABELS[type]}:</span>
+                    <span className="text-slate-500">{ours ? 'מחובר למערכת' : url ? 'מוגדרת כתובת אחרת' : 'לא מוגדר'}</span>
+                  </li>
+                );
+              })}
+              <li className="flex items-center gap-1.5">
+                {webhooks.signatureEnabled ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <XCircle className="w-4 h-4 text-amber-600" />}
+                <span className="font-medium">חתימה דיגיטלית:</span>
+                <span className="text-slate-500">{webhooks.signatureEnabled ? 'פעילה' : 'לא פעילה'}</span>
+              </li>
+            </ul>
+          )}
+          <p className="text-xs text-slate-500">
+            אפשרות ידנית (בלי חתימה): להעתיק את הכתובת ולהדביק בנדרים פלוס בהגדרות &gt; API &gt; Webhook בשלושת השדות
+            (עדכוני עסקאות, הקמת הוראת קבע, עדכוני סירובים).
           </p>
           {callbackUrl ? (
             <>

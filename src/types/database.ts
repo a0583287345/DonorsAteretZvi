@@ -653,18 +653,21 @@ export type Database = {
       }
       integration_secrets: {
         Row: {
+          webhook_secret: string | null
           api_password: string | null
           callback_key: string | null
           provider: string
           updated_at: string
         }
         Insert: {
+          webhook_secret?: string | null
           api_password?: string | null
           callback_key?: string | null
           provider: string
           updated_at?: string
         }
         Update: {
+          webhook_secret?: string | null
           api_password?: string | null
           callback_key?: string | null
           provider?: string

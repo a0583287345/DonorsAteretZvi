@@ -22,9 +22,12 @@ import {
 } from '@/lib/import/donorMatch';
 import {
   NEDARIM_SOURCE,
+  PAGE_SIZE,
+  fetchAllRecurring,
   fetchHistory,
-  fetchRecurring,
-  maxTransactionId,
+  maxId,
+  parseRefusal,
+  type RawRecord,
   parseRecurring,
   parseTransaction,
   type ParsedDonation,
@@ -236,8 +239,45 @@ async function alreadyInReview(kind: 'donation' | 'recurring', externalId: strin
 // ייבוא פריט בודד
 // ---------------------------------------------------------------------
 
-async function donorOfRecurring(kevaId: string | null): Promise<string | null> {
+/**
+ * מטמון לסנכרון גדול: מה כבר קיים במערכת נטען פעם אחת, במקום שאילתה לכל עסקה.
+ * בעדכון בודד (Webhook) לא משתמשים בו.
+ */
+export type SyncCache = {
+  donationIds: Set<string>;
+  reviewIds: Set<string>;
+  kevaDonor: Map<string, string | null>;
+};
+
+async function selectAll<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await fetchPage(from, from + 999);
+    all.push(...(data ?? []));
+    if (!data || data.length < 1000) return all;
+  }
+}
+
+export async function loadSyncCache(): Promise<SyncCache> {
+  const [donations, reviews, recurring] = await Promise.all([
+    selectAll((a, b) =>
+      supabaseAdmin.from('donations').select('external_id').eq('external_source', NEDARIM_SOURCE).range(a, b)
+    ),
+    selectAll((a, b) => supabaseAdmin.from('import_review').select('external_id').eq('source', NEDARIM_SOURCE).range(a, b)),
+    selectAll((a, b) =>
+      supabaseAdmin.from('recurring_donations').select('external_id, donor_id').eq('external_source', NEDARIM_SOURCE).range(a, b)
+    ),
+  ]);
+  return {
+    donationIds: new Set(donations.map((d) => d.external_id).filter((x): x is string => !!x)),
+    reviewIds: new Set(reviews.map((r) => r.external_id).filter((x): x is string => !!x)),
+    kevaDonor: new Map(recurring.filter((r) => r.external_id).map((r) => [r.external_id as string, r.donor_id])),
+  };
+}
+
+async function donorOfRecurring(kevaId: string | null, cache?: SyncCache): Promise<string | null> {
   if (!kevaId) return null;
+  if (cache) return cache.kevaDonor.get(kevaId) ?? null;
   const { data } = await supabaseAdmin
     .from('recurring_donations')
     .select('donor_id')
@@ -247,20 +287,44 @@ async function donorOfRecurring(kevaId: string | null): Promise<string | null> {
   return data?.donor_id ?? null;
 }
 
-export async function importTransactionRecord(raw: Record<string, unknown>, index: DonorIndex): Promise<ImportOutcome> {
+/** חיוב מוצלח של הוראת קבע שסומנה "נכשלה" → חזרה לפעילה */
+async function markRecurringRecovered(kevaId: string | null) {
+  if (!kevaId) return;
+  await supabaseAdmin
+    .from('recurring_donations')
+    .update({ status: 'active', updated_at: new Date().toISOString() })
+    .eq('external_source', NEDARIM_SOURCE)
+    .eq('external_id', kevaId)
+    .eq('status', 'failed');
+}
+
+export async function importTransactionRecord(
+  raw: RawRecord,
+  index: DonorIndex,
+  cache?: SyncCache
+): Promise<ImportOutcome> {
   const parsed = parseTransaction(raw);
   if (!parsed) return 'invalid';
   const { donor, donation } = parsed;
 
-  const { data: existing } = await supabaseAdmin
-    .from('donations')
-    .select('id')
-    .eq('external_source', NEDARIM_SOURCE)
-    .eq('external_id', donation.externalId)
-    .maybeSingle();
-  if (existing || (await alreadyInReview('donation', donation.externalId))) return 'skipped';
+  if (cache) {
+    if (cache.donationIds.has(donation.externalId) || cache.reviewIds.has(reviewExternalId('donation', donation.externalId))) {
+      return 'skipped';
+    }
+    cache.donationIds.add(donation.externalId);
+  } else {
+    const { data: existing } = await supabaseAdmin
+      .from('donations')
+      .select('id')
+      .eq('external_source', NEDARIM_SOURCE)
+      .eq('external_id', donation.externalId)
+      .maybeSingle();
+    if (existing || (await alreadyInReview('donation', donation.externalId))) return 'skipped';
+  }
 
-  const kevaDonor = await donorOfRecurring(donation.recurringExternalId);
+  if (!cache && donation.amount > 0) await markRecurringRecovered(donation.recurringExternalId);
+
+  const kevaDonor = await donorOfRecurring(donation.recurringExternalId, cache);
   if (kevaDonor) return insertDonation(kevaDonor, donation);
 
   const match = matchIncomingDonor(donor, index);
@@ -277,7 +341,7 @@ export async function importTransactionRecord(raw: Record<string, unknown>, inde
   return 'new_donor';
 }
 
-export async function importRecurringRecord(raw: Record<string, unknown>, index: DonorIndex): Promise<ImportOutcome> {
+export async function importRecurringRecord(raw: RawRecord, index: DonorIndex): Promise<ImportOutcome> {
   const parsed = parseRecurring(raw);
   if (!parsed) return 'invalid';
 
@@ -318,6 +382,8 @@ export type NedarimConfig = {
   mosadId: string | null;
   apiPassword: string | null;
   callbackKey: string | null;
+  /** מפתח חתימת HMAC (whsec_) – כשמוגדר, כל עדכון חייב חתימה תקינה */
+  webhookSecret: string | null;
   lastHistoryId: string | null;
 };
 
@@ -331,12 +397,13 @@ export async function getNedarimConfig(): Promise<NedarimConfig> {
     mosadId: settings?.mosad_id ?? null,
     apiPassword: secrets?.api_password ?? null,
     callbackKey: secrets?.callback_key ?? null,
+    webhookSecret: secrets?.webhook_secret ?? null,
     lastHistoryId: settings?.last_history_id ?? null,
   };
 }
 
-/** כמה דפי היסטוריה לכל היותר בהרצה אחת (שלא נחרוג מזמן הריצה של השרת) */
-const MAX_PAGES_PER_RUN = 10;
+/** כמה דפי היסטוריה (2000 עסקאות כל אחד) בהרצה אחת – מכסה של 20 פניות בשעה וזמן ריצה */
+const MAX_PAGES_PER_RUN = 2;
 
 export type SyncSummary = {
   ok: boolean;
@@ -371,7 +438,7 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
 
   try {
     // הוראות קבע קודם – כדי שחיובים חודשיים ישויכו לתורם של ההוראה
-    for (const raw of await fetchRecurring(creds)) {
+    for (const raw of await fetchAllRecurring(creds)) {
       try {
         tally(summary.recurring, await importRecurringRecord(raw, index));
       } catch (e) {
@@ -379,23 +446,25 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
       }
     }
 
+    // המטמון נטען אחרי הוראות הקבע – כדי לכלול את ההוראות שנוצרו עכשיו
+    const cache = await loadSyncCache();
     let lastId = cfg.lastHistoryId;
     for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
       const rows = await fetchHistory(creds, lastId);
       for (const raw of rows) {
         try {
-          tally(summary.donations, await importTransactionRecord(raw, index));
+          tally(summary.donations, await importTransactionRecord(raw, index, cache));
         } catch (e) {
           summary.donations.errors.push(e instanceof Error ? e.message : String(e));
         }
       }
-      const next = maxTransactionId(rows, lastId);
+      const next = maxId(rows, lastId, 'TransactionId');
       if (next !== lastId) {
         lastId = next;
         await supabaseAdmin.from('integration_settings').update({ last_history_id: lastId }).eq('provider', NEDARIM_SOURCE);
       }
       summary.lastHistoryId = lastId;
-      if (rows.length === 0 || next === null) break;
+      if (rows.length < PAGE_SIZE || next === null) break;
       if (page === MAX_PAGES_PER_RUN - 1) summary.morePending = true;
     }
   } catch (e) {
@@ -413,4 +482,34 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
     .eq('provider', NEDARIM_SOURCE);
 
   return summary;
+}
+
+// ---------------------------------------------------------------------
+// Webhook – עדכון בודד מנדרים פלוס
+// ---------------------------------------------------------------------
+
+/**
+ * סירוב: כשל בחיוב הוראת קבע (ניסיון ראשון בחודש) → ההוראה מסומנת "נכשלה",
+ * והטריגר במסד יוצר תזכורת "הוראת קבע נכשלה". סירוב של עסקה רגילה – לא נשמר.
+ */
+export async function applyRefusal(raw: RawRecord): Promise<ImportOutcome> {
+  const refusal = parseRefusal(raw);
+  if (!refusal.kevaId || !refusal.isFirstTry) return 'skipped';
+  const { data: rec } = await supabaseAdmin
+    .from('recurring_donations')
+    .select('id, notes, status')
+    .eq('external_source', NEDARIM_SOURCE)
+    .eq('external_id', refusal.kevaId)
+    .maybeSingle();
+  if (!rec) return 'skipped';
+
+  const when = refusal.date ? `${refusal.date.slice(8, 10)}/${refusal.date.slice(5, 7)}/${refusal.date.slice(0, 4)}` : '';
+  const note = `סירוב ${when}: ${refusal.message}`.trim();
+  const notes = [note, ...(rec.notes ?? '').split(' | ').filter((p) => p && !p.startsWith('סירוב '))].join(' | ').slice(0, 1000);
+  const { error } = await supabaseAdmin
+    .from('recurring_donations')
+    .update({ status: 'failed', notes, updated_at: new Date().toISOString() })
+    .eq('id', rec.id);
+  if (error) throw new Error(error.message);
+  return 'updated';
 }

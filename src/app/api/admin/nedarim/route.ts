@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { auditFromServer, requirePermissionFromRequest } from '@/lib/server-auth';
-import { NEDARIM_SOURCE, fetchHistory } from '@/lib/nedarim/adapter';
+import {
+  NEDARIM_SOURCE,
+  generateWebhookSecret,
+  getWebhooks,
+  setWebhook,
+  setWebhookSecret,
+  type WebhookType,
+} from '@/lib/nedarim/adapter';
 import { getNedarimConfig, runNedarimSync } from '@/lib/nedarim/importer';
 
 // =====================================================================
@@ -12,12 +19,14 @@ import { getNedarimConfig, runNedarimSync } from '@/lib/nedarim/importer';
 //   save_password  – סיסמת API (נשמרת רק בשרת, לא חוזרת לדפדפן לעולם)
 //   clear_password – מחיקת הסיסמה
 //   new_key        – מפתח Callback חדש (הכתובת הישנה מפסיקה לעבוד)
-//   test           – בדיקת חיבור (בלי לייבא)
+//   test           – בדיקת חיבור: אילו כתובות עדכון מוגדרות בנדרים (GetWebhook – לא נספר במכסת ההיסטוריה)
+//   setup_webhooks – רישום הכתובת שלנו בנדרים לשלושת סוגי העדכונים + הפעלת חתימת HMAC
 //   sync_now       – ייבוא עכשיו
 //   reset_history  – ייבוא ההיסטוריה מההתחלה (עסקאות קיימות לא נכנסות פעמיים)
 // =====================================================================
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 function fail(error: string, status = 400) {
   return NextResponse.json({ error }, { status });
@@ -74,6 +83,9 @@ export async function POST(request: Request) {
         if (password.length < 6 || password.length > 200 || /\s/.test(password)) {
           return fail('סיסמת API לא תקינה');
         }
+        if (!password.startsWith('npk_')) {
+          return fail('מפתח API של נדרים פלוס מתחיל ב-npk_ (נוצר בנדרים: הגדרות > API > מפתחות API)');
+        }
         const { error } = await supabaseAdmin
           .from('integration_secrets')
           .update({ api_password: password, updated_at: now })
@@ -94,6 +106,7 @@ export async function POST(request: Request) {
       }
 
       case 'new_key': {
+        // אחרי מפתח חדש צריך להריץ שוב "הגדרה אוטומטית" כדי שנדרים ישלחו לכתובת החדשה
         const key = randomBytes(24).toString('hex');
         const { error } = await supabaseAdmin
           .from('integration_secrets')
@@ -108,11 +121,55 @@ export async function POST(request: Request) {
         const cfg = await getNedarimConfig();
         if (!cfg.mosadId || !cfg.apiPassword) return fail('יש לשמור קודם מספר מוסד וסיסמת API');
         try {
-          const rows = await fetchHistory({ mosadId: cfg.mosadId, apiPassword: cfg.apiPassword }, cfg.lastHistoryId);
-          return NextResponse.json({ success: true, rows: rows.length });
+          const webhooks = await getWebhooks({ mosadId: cfg.mosadId, apiPassword: cfg.apiPassword });
+          return NextResponse.json({ success: true, webhooks, hasLocalSecret: !!cfg.webhookSecret });
         } catch (err) {
           return fail(err instanceof Error ? err.message : 'החיבור נכשל', 502);
         }
+      }
+
+      case 'setup_webhooks': {
+        const cfg = await getNedarimConfig();
+        if (!cfg.mosadId || !cfg.apiPassword) return fail('יש לשמור קודם מספר מוסד וסיסמת API');
+        if (!cfg.callbackKey) return fail('חסר מפתח Callback');
+        const origin = typeof body.origin === 'string' ? body.origin.replace(/\/+$/, '') : '';
+        if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin)) {
+          return fail('אפשר להגדיר עדכונים רק מהאתר המפורסם (כתובת https), לא מהשרת המקומי');
+        }
+        const creds = { mosadId: cfg.mosadId, apiPassword: cfg.apiPassword };
+        const url = `${origin}/api/nedarim/callback?key=${cfg.callbackKey}`;
+        const force = body.force === true;
+
+        // 1. כתובות העדכון (עסקאות, הקמת הוראת קבע, סירובים)
+        const conflicts: { type: WebhookType; existing: string }[] = [];
+        for (const type of ['Transaction', 'Keva', 'Siruv'] as WebhookType[]) {
+          const r = await setWebhook(creds, type, url, force);
+          if (!r.ok) {
+            if (r.existing) conflicts.push({ type, existing: r.existing });
+            else return fail(`נדרים פלוס (${type}): ${r.message}`, 502);
+          }
+        }
+        if (conflicts.length) {
+          return NextResponse.json({ success: false, conflicts });
+        }
+
+        // 2. חתימה: קודם שומרים אצלנו, ורק אז מפעילים בנדרים (כמו שהתיעוד מורה)
+        const secret = generateWebhookSecret();
+        const { error } = await supabaseAdmin
+          .from('integration_secrets')
+          .update({ webhook_secret: secret, updated_at: now })
+          .eq('provider', NEDARIM_SOURCE);
+        if (error) return fail(error.message, 500);
+        try {
+          await setWebhookSecret(creds, secret);
+        } catch (err) {
+          // ההפעלה בנדרים נכשלה – מבטלים אצלנו כדי שעדכונים לא חתומים ימשיכו להתקבל
+          await supabaseAdmin.from('integration_secrets').update({ webhook_secret: null }).eq('provider', NEDARIM_SOURCE);
+          return fail(`הכתובות הוגדרו, אבל הפעלת החתימה נכשלה: ${err instanceof Error ? err.message : 'שגיאה'}`, 502);
+        }
+
+        await auditFromServer(user, 'update', 'integration_settings', 'נדרים פלוס: הוגדרו כתובות העדכון והחתימה');
+        return NextResponse.json({ success: true, webhooks: await getWebhooks(creds) });
       }
 
       case 'sync_now': {

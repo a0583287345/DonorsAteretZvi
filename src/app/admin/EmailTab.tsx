@@ -58,6 +58,8 @@ export default function EmailTab() {
   // הגדרות
   const [enabled, setEnabled] = useState(false);
   const [gmailUser, setGmailUser] = useState('');
+  // הכתובת כפי שנשמרה במסד (השרת שולח רק ממנה)
+  const [savedGmailUser, setSavedGmailUser] = useState('');
   const [fromName, setFromName] = useState('');
   const [managerEmails, setManagerEmails] = useState('');
   const [templates, setTemplates] = useState<EmailTemplates>(DEFAULT_TEMPLATES);
@@ -78,6 +80,7 @@ export default function EmailTab() {
     if (s) {
       setEnabled(s.enabled);
       setGmailUser(s.gmail_user ?? '');
+      setSavedGmailUser(s.gmail_user ?? '');
       setFromName(s.from_name);
       setManagerEmails((s.manager_emails ?? []).join('\n'));
       setTemplates(mergeTemplates(s.templates));
@@ -126,12 +129,28 @@ export default function EmailTab() {
         })
         .eq('id', 1);
       if (error) throw new Error(error.message);
+      setSavedGmailUser(gmailUser.trim());
       await logActivity('update', 'email_settings', `עודכנו הגדרות המייל (שליחה ${enabled ? 'פעילה' : 'כבויה'})`);
       toast.success('ההגדרות נשמרו');
     });
 
+  /** שומר את כתובת ה-Gmail אם הוקלדה ועוד לא נשמרה (השרת קורא רק מהמסד) */
+  async function persistGmailUser() {
+    const typed = gmailUser.trim();
+    if (!typed || typed === savedGmailUser) return;
+    if (!isValidEmail(typed)) throw new Error('כתובת ה-Gmail לא תקינה');
+    const { error } = await supabase
+      .from('email_settings')
+      .update({ gmail_user: typed, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+      .eq('id', 1);
+    if (error) throw new Error(error.message);
+    setSavedGmailUser(typed);
+    await logActivity('update', 'email_settings', `עודכנה כתובת ה-Gmail לשליחה: ${typed}`);
+  }
+
   const savePassword = () =>
     run('password', async () => {
+      await persistGmailUser();
       await emailApi('save_password', { password: newPassword });
       setNewPassword('');
       setHasPassword(true);
@@ -148,6 +167,7 @@ export default function EmailTab() {
 
   const sendTest = () =>
     run('test', async () => {
+      await persistGmailUser();
       await emailApi('test', { to: testTo });
       toast.success(`מייל בדיקה נשלח ל-${testTo}`);
       await loadAll();
@@ -271,6 +291,9 @@ export default function EmailTab() {
               placeholder="example@gmail.com"
               className={inputClass}
             />
+            {gmailUser.trim() !== savedGmailUser && (
+              <p className="text-xs text-amber-600">הכתובת עוד לא נשמרה – תישמר אוטומטית בשמירת הסיסמה / מייל בדיקה, או בכפתור &quot;שמירה&quot;.</p>
+            )}
           </div>
 
           <div className="space-y-1.5">

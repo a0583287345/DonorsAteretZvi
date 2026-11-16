@@ -73,13 +73,25 @@ export async function sendEmail(cfg: EmailConfig, to: string, subject: string, b
     auth: { user: cfg.gmailUser!, pass: cfg.password! },
   });
 
-  await transporter.sendMail({
-    from: `"${cfg.fromName.replace(/"/g, '')}" <${cfg.gmailUser}>`,
-    to,
-    subject,
-    text: body,
-    html: `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap">${escapeHtml(body)}</div>`,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"${cfg.fromName.replace(/"/g, '')}" <${cfg.gmailUser}>`,
+      to,
+      subject,
+      text: body,
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap">${escapeHtml(body)}</div>`,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 535 = גוגל דחה את שם המשתמש / הסיסמה
+    if (/535|Username and Password not accepted|BadCredentials|Invalid login/i.test(msg)) {
+      throw new Error(
+        'גוגל דחה את ההתחברות: יש לוודא שהכתובת היא בדיוק החשבון שבו נוצרה סיסמת האפליקציה, ' +
+          'שאימות דו-שלבי פעיל בחשבון, ושהודבקה סיסמת אפליקציה (16 אותיות) ולא הסיסמה הרגילה'
+      );
+    }
+    throw err;
+  }
 }
 
 type DonorRow = { id: string; first_name_he: string | null; last_name_he: string | null; email: string | null };
