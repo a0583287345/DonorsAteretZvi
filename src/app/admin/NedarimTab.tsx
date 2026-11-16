@@ -14,6 +14,7 @@ const inputClass =
 type Counts = {
   imported: number;
   new_donor: number;
+  no_donor?: number;
   review: number;
   skipped: number;
   invalid: number;
@@ -60,9 +61,10 @@ function describeSync(s: SyncSummary | null): string {
   const d = s.donations;
   const r = s.recurring;
   return [
-    `${d.imported + d.new_donor} תרומות חדשות`,
+    `${d.imported + d.new_donor + (d.no_donor ?? 0)} תרומות חדשות`,
     d.new_donor ? `${d.new_donor} תורמים חדשים` : '',
-    r.imported + r.new_donor ? `${r.imported + r.new_donor} הוראות קבע חדשות` : '',
+    d.no_donor ? `${d.no_donor} ללא תורם` : '',
+    r.imported + r.new_donor + (r.no_donor ?? 0) ? `${r.imported + r.new_donor + (r.no_donor ?? 0)} הוראות קבע חדשות` : '',
     r.updated ? `${r.updated} הוראות קבע עודכנו` : '',
     d.review + r.review ? `${d.review + r.review} לבדיקה` : '',
     d.old ? `${d.old} עסקאות ישנות דולגו` : '',

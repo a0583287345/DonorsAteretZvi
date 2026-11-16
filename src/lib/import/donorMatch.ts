@@ -113,6 +113,28 @@ function namesCompatible(a: string[], b: string[]): boolean {
   return a.some((t) => sb.has(t));
 }
 
+/** השם שניתן לתורם שנוצר מייבוא בלי שם – לא שם אמיתי, לא משמש לזיהוי כפילויות */
+export const IMPORT_PLACEHOLDER_NAME = 'תורם מנדרים פלוס';
+
+/** שמות שמקורות חיצוניים שולחים כשאין תורם (נבדק אחרי nameTokens) */
+const ANONYMOUS_NAMES = new Set(
+  [IMPORT_PLACEHOLDER_NAME, 'אנונימי', 'תורם אנונימי', 'ללא שם', 'בעילום שם', 'anonymous', 'anonim'].map((n) =>
+    nameTokens(n).join(' ')
+  )
+);
+
+const isAnonymousName = (tokens: string[]) => tokens.length === 0 || ANONYMOUS_NAMES.has(tokens.join(' '));
+
+/**
+ * האם יש לתורם המיובא פרט מזהה כלשהו (שם / ת"ז / טלפון / מייל / כתובת).
+ * בלי אף אחד – "תרומה ללא תורם": לא פותחים כרטיס תורם.
+ */
+export function hasIdentifyingDetails(i: IncomingDonor): boolean {
+  if (normalizeZeout(i.zeout) || normalizePhone(i.phone) || normalizeEmail(i.email)) return true;
+  if (i.street?.trim() || i.city?.trim()) return true;
+  return !isAnonymousName(incomingNameTokens(i));
+}
+
 export const donorDisplayName = (d: Pick<DonorKeys, 'first_name_he' | 'last_name_he' | 'first_name_en' | 'last_name_en'>) =>
   [d.first_name_he, d.last_name_he].filter(Boolean).join(' ') ||
   [d.first_name_en, d.last_name_en].filter(Boolean).join(' ') ||
@@ -217,7 +239,7 @@ export function matchIncomingDonor(incoming: IncomingDonor, index: DonorIndex): 
   }
 
   // 4. שם זהה בלבד
-  if (tokens.length >= 2) {
+  if (tokens.length >= 2 && !isAnonymousName(tokens)) {
     const sameNameIds = [...index.byId.values()]
       .filter((d) => !conflictsZeout(d.id) && (sameName(tokens, donorNameTokens(d)) || sameName(tokens, donorNameTokensEn(d))))
       .map((d) => d.id);
@@ -264,7 +286,8 @@ export function findDuplicatePairs(donors: DonorKeys[], dismissed: Set<string> =
     add('phone', normalizePhone(d.phone_2), d.id);
     add('email', normalizeEmail(d.email), d.id);
     for (const tokens of [donorNameTokens(d), donorNameTokensEn(d)]) {
-      if (tokens.length >= 2) add('name', [...new Set(tokens)].sort().join(' '), d.id);
+      // "תורם מנדרים פלוס" / "אנונימי" – לא שם אמיתי, לא סיבה לחשוד בכפילות
+      if (tokens.length >= 2 && !isAnonymousName(tokens)) add('name', [...new Set(tokens)].sort().join(' '), d.id);
     }
   }
 

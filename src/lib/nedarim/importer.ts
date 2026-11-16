@@ -5,8 +5,9 @@
 //   1. כבר קיימת במערכת (לפי מספר העסקה)  → מדלגים (לא נכנס פעמיים)
 //   2. שייכת להוראת קבע מוכרת              → לתורם של הוראת הקבע
 //   3. התאמה בטוחה (ת"ז / טלפון / מייל)    → לתורם הקיים (+ משלים לו שדות חסרים)
-//   4. לא ברור                             → תור "לבדיקה" (import_review)
-//   5. אין שום התאמה                       → תורם חדש
+//   4. אין שום פרט מזהה (רק סכום)          → תרומה ללא תורם (לא פותחים כרטיס)
+//   5. לא ברור                             → תור "לבדיקה" (import_review)
+//   6. אין שום התאמה                       → תורם חדש
 // =====================================================================
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -14,6 +15,8 @@ import type { Json, TablesInsert } from '@/types/database';
 import {
   addToIndex,
   buildDonorIndex,
+  hasIdentifyingDetails,
+  IMPORT_PLACEHOLDER_NAME,
   matchIncomingDonor,
   normalizePhone,
   type DonorIndex,
@@ -34,14 +37,18 @@ import {
   type ParsedRecurring,
 } from './adapter';
 
-/** old = לפני תאריך ההתחלה של הייבוא (או הוראת קבע שהסתיימה) – לא נשמר */
-export type ImportOutcome = 'imported' | 'new_donor' | 'review' | 'skipped' | 'invalid' | 'updated' | 'old';
+/**
+ * old = לפני תאריך ההתחלה של הייבוא (או הוראת קבע שהסתיימה) – לא נשמר
+ * no_donor = נשמר בלי תורם (בנדרים אין שום פרט מזהה – רק סכום)
+ */
+export type ImportOutcome = 'imported' | 'new_donor' | 'no_donor' | 'review' | 'skipped' | 'invalid' | 'updated' | 'old';
 
 export type ImportCounts = Record<ImportOutcome, number> & { errors: string[] };
 
 export const emptyCounts = (): ImportCounts => ({
   imported: 0,
   new_donor: 0,
+  no_donor: 0,
   review: 0,
   skipped: 0,
   invalid: 0,
@@ -72,8 +79,11 @@ export async function createDonorFromIncoming(
   extra: { isRecurring?: boolean } = {},
   index?: DonorIndex
 ): Promise<string> {
-  const english = !hasHebrew(incoming.full_name) && !hasHebrew(incoming.first_name) && !hasHebrew(incoming.last_name);
-  const first = incoming.first_name ?? incoming.full_name ?? 'תורם מנדרים פלוס';
+  const realFirst = incoming.first_name ?? incoming.full_name;
+  // בלי שם בכלל – השם הזמני נשמר בעברית (קודם נשמר בטעות בשדות האנגלית)
+  const english =
+    !!realFirst && !hasHebrew(incoming.full_name) && !hasHebrew(incoming.first_name) && !hasHebrew(incoming.last_name);
+  const first = realFirst ?? IMPORT_PLACEHOLDER_NAME;
   const row: TablesInsert<'donors'> = {
     first_name_he: english ? null : first,
     last_name_he: english ? null : incoming.last_name,
@@ -131,8 +141,8 @@ export async function fillMissingDonorFields(donorId: string, incoming: Incoming
 // כתיבת תרומה / הוראת קבע לתורם
 // ---------------------------------------------------------------------
 
-/** מוסיף תרומה לתורם. 'skipped' אם העסקה כבר קיימת */
-export async function insertDonation(donorId: string, d: ParsedDonation): Promise<'imported' | 'skipped'> {
+/** מוסיף תרומה לתורם (null = תרומה ללא תורם). 'skipped' אם העסקה כבר קיימת */
+export async function insertDonation(donorId: string | null, d: ParsedDonation): Promise<'imported' | 'skipped'> {
   const row: TablesInsert<'donations'> = {
     donor_id: donorId,
     amount: d.amount,
@@ -331,6 +341,11 @@ export async function importTransactionRecord(
   const kevaDonor = await donorOfRecurring(donation.recurringExternalId, cache);
   if (kevaDonor) return insertDonation(kevaDonor, donation);
 
+  // אין שם / ת"ז / טלפון / מייל / כתובת – תרומה ללא תורם, בלי כרטיס חדש
+  if (!hasIdentifyingDetails(donor)) {
+    return (await insertDonation(null, donation)) === 'imported' ? 'no_donor' : 'skipped';
+  }
+
   const match = matchIncomingDonor(donor, index);
   if (match.kind === 'match') {
     await fillMissingDonorFields(match.donorId, donor, index);
@@ -367,6 +382,12 @@ export async function importRecurringRecord(
   // הוראה שהסתיימה ועוד לא מוכרת – היסטוריה, לא מייבאים
   if (skipEnded && parsed.status === 'ended') return 'old';
   if (await alreadyInReview('recurring', parsed.externalId)) return 'skipped';
+
+  // הוראת קבע בלי שום פרט מזהה – נשמרת בלי תורם
+  if (!hasIdentifyingDetails(parsed.donor)) {
+    await upsertRecurring(null, parsed);
+    return 'no_donor';
+  }
 
   const match = matchIncomingDonor(parsed.donor, index);
   if (match.kind === 'match') {

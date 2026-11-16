@@ -187,7 +187,7 @@ export async function POST(request: Request) {
           user,
           'IMPORT',
           'donations',
-          `ייבוא מנדרים פלוס: ${d.imported + d.new_donor} תרומות, ${d.new_donor} תורמים חדשים, ${d.review + summary.recurring.review} לבדיקה`
+          `ייבוא מנדרים פלוס: ${d.imported + d.new_donor + d.no_donor} תרומות (${d.no_donor} ללא תורם), ${d.new_donor} תורמים חדשים, ${d.review + summary.recurring.review} לבדיקה`
         );
         return NextResponse.json(summary);
       }
