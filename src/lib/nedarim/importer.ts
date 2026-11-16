@@ -34,7 +34,8 @@ import {
   type ParsedRecurring,
 } from './adapter';
 
-export type ImportOutcome = 'imported' | 'new_donor' | 'review' | 'skipped' | 'invalid' | 'updated';
+/** old = לפני תאריך ההתחלה של הייבוא (או הוראת קבע שהסתיימה) – לא נשמר */
+export type ImportOutcome = 'imported' | 'new_donor' | 'review' | 'skipped' | 'invalid' | 'updated' | 'old';
 
 export type ImportCounts = Record<ImportOutcome, number> & { errors: string[] };
 
@@ -45,6 +46,7 @@ export const emptyCounts = (): ImportCounts => ({
   skipped: 0,
   invalid: 0,
   updated: 0,
+  old: 0,
   errors: [],
 });
 
@@ -301,11 +303,13 @@ async function markRecurringRecovered(kevaId: string | null) {
 export async function importTransactionRecord(
   raw: RawRecord,
   index: DonorIndex,
-  cache?: SyncCache
+  cache?: SyncCache,
+  importFrom?: string | null
 ): Promise<ImportOutcome> {
   const parsed = parseTransaction(raw);
   if (!parsed) return 'invalid';
   const { donor, donation } = parsed;
+  if (importFrom && donation.date && donation.date < importFrom) return 'old';
 
   if (cache) {
     if (cache.donationIds.has(donation.externalId) || cache.reviewIds.has(reviewExternalId('donation', donation.externalId))) {
@@ -341,7 +345,11 @@ export async function importTransactionRecord(
   return 'new_donor';
 }
 
-export async function importRecurringRecord(raw: RawRecord, index: DonorIndex): Promise<ImportOutcome> {
+export async function importRecurringRecord(
+  raw: RawRecord,
+  index: DonorIndex,
+  { skipEnded = false } = {}
+): Promise<ImportOutcome> {
   const parsed = parseRecurring(raw);
   if (!parsed) return 'invalid';
 
@@ -356,6 +364,8 @@ export async function importRecurringRecord(raw: RawRecord, index: DonorIndex): 
     await upsertRecurring(null, parsed);
     return 'updated';
   }
+  // הוראה שהסתיימה ועוד לא מוכרת – היסטוריה, לא מייבאים
+  if (skipEnded && parsed.status === 'ended') return 'old';
   if (await alreadyInReview('recurring', parsed.externalId)) return 'skipped';
 
   const match = matchIncomingDonor(parsed.donor, index);
@@ -385,6 +395,8 @@ export type NedarimConfig = {
   /** מפתח חתימת HMAC (whsec_) – כשמוגדר, כל עדכון חייב חתימה תקינה */
   webhookSecret: string | null;
   lastHistoryId: string | null;
+  /** YYYY-MM-DD – עסקאות לפני התאריך לא מיובאות (null = הכול) */
+  importFrom: string | null;
 };
 
 export async function getNedarimConfig(): Promise<NedarimConfig> {
@@ -399,11 +411,14 @@ export async function getNedarimConfig(): Promise<NedarimConfig> {
     callbackKey: secrets?.callback_key ?? null,
     webhookSecret: secrets?.webhook_secret ?? null,
     lastHistoryId: settings?.last_history_id ?? null,
+    importFrom: settings?.import_from ?? null,
   };
 }
 
-/** כמה דפי היסטוריה (2000 עסקאות כל אחד) בהרצה אחת – מכסה של 20 פניות בשעה וזמן ריצה */
+/** כמה דפי היסטוריה (2000 עסקאות כל אחד) עם ייבוא בפועל בהרצה אחת – זמן ריצה */
 const MAX_PAGES_PER_RUN = 2;
+/** כמה דפים לכל היותר בהרצה (כולל דפים ישנים שכולם מדולגים – מהירים) – מכסת 20 פניות בשעה */
+const MAX_REQUESTS_PER_RUN = 8;
 
 export type SyncSummary = {
   ok: boolean;
@@ -440,7 +455,7 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
     // הוראות קבע קודם – כדי שחיובים חודשיים ישויכו לתורם של ההוראה
     for (const raw of await fetchAllRecurring(creds)) {
       try {
-        tally(summary.recurring, await importRecurringRecord(raw, index));
+        tally(summary.recurring, await importRecurringRecord(raw, index, { skipEnded: true }));
       } catch (e) {
         summary.recurring.errors.push(e instanceof Error ? e.message : String(e));
       }
@@ -449,15 +464,21 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
     // המטמון נטען אחרי הוראות הקבע – כדי לכלול את ההוראות שנוצרו עכשיו
     const cache = await loadSyncCache();
     let lastId = cfg.lastHistoryId;
-    for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
+    // דף שכל העסקאות בו לפני תאריך ההתחלה מדולג מהר – לא נספר כ"דף ייבוא"
+    let importPages = 0;
+    for (let request = 0; request < MAX_REQUESTS_PER_RUN && importPages < MAX_PAGES_PER_RUN; request++) {
       const rows = await fetchHistory(creds, lastId);
+      let pageHadNew = false;
       for (const raw of rows) {
         try {
-          tally(summary.donations, await importTransactionRecord(raw, index, cache));
+          const outcome = await importTransactionRecord(raw, index, cache, cfg.importFrom);
+          tally(summary.donations, outcome);
+          if (outcome !== 'old') pageHadNew = true;
         } catch (e) {
           summary.donations.errors.push(e instanceof Error ? e.message : String(e));
         }
       }
+      if (pageHadNew) importPages++;
       const next = maxId(rows, lastId, 'TransactionId');
       if (next !== lastId) {
         lastId = next;
@@ -465,7 +486,7 @@ export async function runNedarimSync({ force = false } = {}): Promise<SyncSummar
       }
       summary.lastHistoryId = lastId;
       if (rows.length < PAGE_SIZE || next === null) break;
-      if (page === MAX_PAGES_PER_RUN - 1) summary.morePending = true;
+      if (request === MAX_REQUESTS_PER_RUN - 1 || importPages >= MAX_PAGES_PER_RUN) summary.morePending = true;
     }
   } catch (e) {
     summary.ok = false;

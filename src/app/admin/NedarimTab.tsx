@@ -5,12 +5,22 @@ import {
   PlugZap, KeyRound, Save, Loader2, CheckCircle2, XCircle, Play, Copy, RefreshCw, Trash2, Info, RotateCcw, Link2,
 } from 'lucide-react';
 import { callServerApi } from '@/lib/apiClient';
+import DateInput from '@/components/DateInput';
 import { toast } from '@/components/Toaster';
 
 const inputClass =
   'w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30';
 
-type Counts = { imported: number; new_donor: number; review: number; skipped: number; invalid: number; updated: number; errors: string[] };
+type Counts = {
+  imported: number;
+  new_donor: number;
+  review: number;
+  skipped: number;
+  invalid: number;
+  updated: number;
+  old?: number;
+  errors: string[];
+};
 type SyncSummary = {
   ok: boolean;
   skippedReason?: string;
@@ -35,6 +45,7 @@ type Status = {
   hasPassword: boolean;
   callbackKey: string | null;
   lastHistoryId: string | null;
+  importFrom: string | null;
   lastSyncAt: string | null;
   lastSyncResult: SyncSummary | null;
 };
@@ -54,6 +65,7 @@ function describeSync(s: SyncSummary | null): string {
     r.imported + r.new_donor ? `${r.imported + r.new_donor} הוראות קבע חדשות` : '',
     r.updated ? `${r.updated} הוראות קבע עודכנו` : '',
     d.review + r.review ? `${d.review + r.review} לבדיקה` : '',
+    d.old ? `${d.old} עסקאות ישנות דולגו` : '',
     d.errors.length + r.errors.length ? `${d.errors.length + r.errors.length} שגיאות` : '',
     s.morePending ? 'יש עוד – להריץ שוב' : '',
   ]
@@ -68,6 +80,7 @@ export default function NedarimTab() {
   const [status, setStatus] = useState<Status | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [mosadId, setMosadId] = useState('');
+  const [importFrom, setImportFrom] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [webhooks, setWebhooks] = useState<Webhooks | null>(null);
 
@@ -77,6 +90,8 @@ export default function NedarimTab() {
       setStatus(s);
       setEnabled(s.enabled);
       setMosadId(s.mosadId ?? '');
+      // ברירת מחדל: מתחילת השנה הנוכחית
+      setImportFrom(s.importFrom ?? `${new Date().getFullYear()}-01-01`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'שגיאה בטעינה');
     } finally {
@@ -102,7 +117,7 @@ export default function NedarimTab() {
 
   const saveSettings = () =>
     run('settings', async () => {
-      await api('save_settings', { enabled, mosadId });
+      await api('save_settings', { enabled, mosadId, importFrom });
       toast.success('ההגדרות נשמרו');
       await load();
     });
@@ -151,6 +166,10 @@ export default function NedarimTab() {
 
   const syncNow = () =>
     run('sync', async () => {
+      if ((status?.importFrom ?? null) !== (importFrom || null)) {
+        toast.warning('יש לשמור קודם את תאריך ההתחלה (כפתור "שמירה")');
+        return;
+      }
       const r = await api<SyncSummary>('sync_now');
       if (r.ok) toast.success(describeSync(r));
       else toast.error(describeSync(r));
@@ -250,6 +269,17 @@ export default function NedarimTab() {
               onChange={(e) => setMosadId(e.target.value.replace(/[^0-9]/g, ''))}
               className={inputClass}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700">לייבא תרומות מתאריך</label>
+            <DateInput value={importFrom} onChange={setImportFrom} />
+            <p className="text-xs text-slate-400">
+              עסקאות לפני התאריך לא ייכנסו (גם לא התורמים שלהן). ריק = כל ההיסטוריה. הוראות קבע שכבר הסתיימו לא מיובאות.
+            </p>
+            {status?.importFrom !== (importFrom || null) && (
+              <p className="text-xs text-amber-600">התאריך עוד לא נשמר – ללחוץ &quot;שמירה&quot; לפני הייבוא.</p>
+            )}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">

@@ -60,6 +60,7 @@ export async function POST(request: Request) {
           hasPassword: !!cfg.apiPassword,
           callbackKey: cfg.callbackKey,
           lastHistoryId: cfg.lastHistoryId,
+          importFrom: cfg.importFrom,
           lastSyncAt: settings?.last_sync_at ?? null,
           lastSyncResult: settings?.last_sync_result ?? null,
         });
@@ -69,12 +70,19 @@ export async function POST(request: Request) {
         const mosadId = typeof body.mosadId === 'string' ? body.mosadId.trim() : '';
         if (mosadId && !/^[0-9]{1,12}$/.test(mosadId)) return fail('מספר מוסד – ספרות בלבד');
         const enabled = body.enabled === true;
+        const importFrom = typeof body.importFrom === 'string' ? body.importFrom : '';
+        if (importFrom && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(importFrom)) return fail('תאריך התחלה לא תקין');
         const { error } = await supabaseAdmin
           .from('integration_settings')
-          .update({ enabled, mosad_id: mosadId || null, updated_at: now, updated_by: user.id })
+          .update({ enabled, mosad_id: mosadId || null, import_from: importFrom || null, updated_at: now, updated_by: user.id })
           .eq('provider', NEDARIM_SOURCE);
         if (error) return fail(error.message, 500);
-        await auditFromServer(user, 'update', 'integration_settings', `נדרים פלוס: ${enabled ? 'מופעל' : 'כבוי'}`);
+        await auditFromServer(
+          user,
+          'update',
+          'integration_settings',
+          `נדרים פלוס: ${enabled ? 'מופעל' : 'כבוי'}${importFrom ? `, ייבוא מ-${importFrom.split('-').reverse().join('/')}` : ', ייבוא כל ההיסטוריה'}`
+        );
         return NextResponse.json({ success: true });
       }
 

@@ -620,6 +620,7 @@ export type Database = {
       }
       integration_settings: {
         Row: {
+          import_from: string | null
           enabled: boolean
           last_history_id: string | null
           last_sync_at: string | null
@@ -630,6 +631,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          import_from?: string | null
           enabled?: boolean
           last_history_id?: string | null
           last_sync_at?: string | null
@@ -640,6 +642,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          import_from?: string | null
           enabled?: boolean
           last_history_id?: string | null
           last_sync_at?: string | null
