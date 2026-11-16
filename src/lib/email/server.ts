@@ -219,6 +219,14 @@ export async function sendApprovedEmails(cfg: EmailConfig, today: string) {
   }
 
   for (const m of queue) {
+    // ייתכן שבינתיים השהו / ביטלו / מחקו את המייל – בודקים שוב רגע לפני השליחה
+    const { data: still } = await supabaseAdmin
+      .from('email_outbox')
+      .select('id')
+      .eq('id', m.id)
+      .eq('status', 'approved')
+      .maybeSingle();
+    if (!still) continue;
     try {
       await sendEmail(cfg, m.to_email, m.subject, m.body);
       await supabaseAdmin

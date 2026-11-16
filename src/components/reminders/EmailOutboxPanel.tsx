@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Clock, Loader2, Mail, Play, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Ban, Check, Clock, Loader2, Mail, Pause, Play, RefreshCw, RotateCcw, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { callServerApi } from '@/lib/apiClient';
 import { logActivity } from '@/lib/logger';
@@ -24,7 +24,23 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   sent: { label: 'נשלח', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   failed: { label: 'נכשל', className: 'bg-red-50 text-red-700 border-red-200' },
   rejected: { label: 'נדחה', className: 'bg-slate-100 text-slate-500 border-slate-200' },
+  paused: { label: 'מושהה', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  cancelled: { label: 'בוטל', className: 'bg-slate-100 text-slate-500 border-slate-200' },
 };
+
+/** מייל שעוד לא נשלח – אפשר להשהות / לבטל / למחוק */
+const UNSENT = new Set(['pending_approval', 'approved', 'failed', 'paused']);
+
+/** פעולות על מייל שלא נשלח: הסטטוס החדש, הודעה ורישום ליומן */
+const STATUS_ACTIONS = {
+  pause: { status: 'paused', log: 'EMAIL_PAUSED', verb: 'השהה', toast: 'המייל הושהה – לא יישלח עד שתמשיך' },
+  cancel: { status: 'cancelled', log: 'EMAIL_CANCELLED', verb: 'ביטל', toast: 'המייל בוטל' },
+  delete: { status: 'deleted', log: 'EMAIL_DELETED', verb: 'מחק', toast: 'המייל נמחק' },
+} as const;
+
+/** המשך אחרי השהיה: הודעה לתורם שלא אושרה חוזרת לאישור, כל השאר – מאושר לשליחה */
+const resumeStatus = (m: Tables<'email_outbox'>) =>
+  m.kind === 'donor' && !m.decided_at ? 'pending_approval' : 'approved';
 
 const KIND_LABELS: Record<string, string> = { manager: 'למנהל', donor: 'לתורם', test: 'בדיקה' };
 
@@ -41,6 +57,7 @@ export default function EmailOutboxPanel({ onPendingCount }: { onPendingCount?: 
     const { data, error } = await supabase
       .from('email_outbox')
       .select('*')
+      .neq('status', 'deleted')
       .order('created_at', { ascending: false })
       .limit(300);
     if (error) toast.error(`שגיאה בטעינת המיילים: ${error.message}`);
@@ -121,8 +138,49 @@ export default function EmailOutboxPanel({ onPendingCount }: { onPendingCount?: 
       await load();
     });
 
-  const pending = outbox.filter((m) => m.status === 'pending_approval' || m.status === 'approved' || m.status === 'failed');
-  const history = outbox.filter((m) => m.status === 'sent' || m.status === 'rejected');
+  /** השהיה / ביטול / מחיקה – רק כל עוד המייל לא נשלח (התנאי גם בעדכון עצמו) */
+  const changeStatus = (row: OutboxRow, action: keyof typeof STATUS_ACTIONS) =>
+    run(`decide-${row.id}`, async () => {
+      const a = STATUS_ACTIONS[action];
+      if (action === 'delete' && !window.confirm(`למחוק את המייל "${row.subject}"? הוא לא יישלח ולא יוכן שוב.`)) return;
+      const { data, error } = await supabase
+        .from('email_outbox')
+        // בהשהיה לא נוגעים ב-decided_at: לפיו יודעים אם הודעה לתורם כבר אושרה (בהמשך)
+        .update(
+          action === 'pause'
+            ? { status: a.status }
+            : { status: a.status, decided_by: user?.id ?? null, decided_at: new Date().toISOString() }
+        )
+        .eq('id', row.id)
+        .in('status', [...UNSENT])
+        .select('id');
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error('המייל כבר נשלח או שהמצב שלו השתנה – מרענן');
+      await logActivity(a.log, 'email_outbox', `${a.verb} מייל ${KIND_LABELS[row.kind] ?? ''} (${row.to_email}): ${row.subject}`);
+      toast.info(a.toast);
+    }).finally(() => void load());
+
+  const resume = (row: OutboxRow) =>
+    run(`decide-${row.id}`, async () => {
+      const next = resumeStatus(row);
+      const { error } = await supabase
+        .from('email_outbox')
+        .update({ status: next, error: null })
+        .eq('id', row.id)
+        .eq('status', 'paused');
+      if (error) throw new Error(error.message);
+      await logActivity('EMAIL_RESUMED', 'email_outbox', `המשיך מייל מושהה (${row.to_email}): ${row.subject}`);
+      if (next === 'approved') {
+        const r = await emailApi<{ sent: number; reason: string | null }>('send_approved');
+        toast.success(r.sent ? 'המייל נשלח' : `המייל חזר לתור${r.reason ? ` – ${r.reason}` : ' ויישלח ביום המועד'}`);
+      } else {
+        toast.success('המייל חזר להמתנה לאישור');
+      }
+      await load();
+    });
+
+  const pending = outbox.filter((m) => UNSENT.has(m.status));
+  const history = outbox.filter((m) => m.status === 'sent' || m.status === 'rejected' || m.status === 'cancelled');
   const awaitingApproval = outbox.filter((m) => m.status === 'pending_approval').length;
   const list = view === 'pending' ? pending : history;
 
@@ -199,7 +257,7 @@ export default function EmailOutboxPanel({ onPendingCount }: { onPendingCount?: 
                     {m.body}
                   </pre>
                   {m.error && <p className="text-xs text-red-600">שגיאה: {m.error}</p>}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {m.status === 'pending_approval' && (
                       <>
                         <Protect permId="emails_approve">
@@ -235,6 +293,58 @@ export default function EmailOutboxPanel({ onPendingCount }: { onPendingCount?: 
                           נסה שוב
                         </button>
                       </Protect>
+                    )}
+                    {m.status === 'paused' && (
+                      <Protect permId="emails_approve">
+                        <button
+                          onClick={() => resume(m)}
+                          disabled={isBusy}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          המשך
+                        </button>
+                      </Protect>
+                    )}
+                    {UNSENT.has(m.status) && (
+                      <div className="flex flex-wrap gap-2 mr-auto">
+                        {m.status !== 'paused' && (
+                          <Protect permId="emails_approve">
+                            <button
+                              onClick={() => changeStatus(m, 'pause')}
+                              disabled={isBusy}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-orange-50 hover:text-orange-700 text-slate-600 text-xs font-bold"
+                              title="לא יישלח עד שתלחץ 'המשך'"
+                            >
+                              <Pause className="w-3.5 h-3.5" />
+                              השהה
+                            </button>
+                          </Protect>
+                        )}
+                        {m.status !== 'pending_approval' && (
+                          <Protect permId="emails_approve">
+                            <button
+                              onClick={() => changeStatus(m, 'cancel')}
+                              disabled={isBusy}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold"
+                              title="המייל לא יישלח ויעבור להיסטוריה"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              בטל שליחה
+                            </button>
+                          </Protect>
+                        )}
+                        <Protect permId="emails_approve">
+                          <button
+                            onClick={() => changeStatus(m, 'delete')}
+                            disabled={isBusy}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 text-slate-500 text-xs font-bold"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            מחק
+                          </button>
+                        </Protect>
+                      </div>
                     )}
                   </div>
                 </div>
