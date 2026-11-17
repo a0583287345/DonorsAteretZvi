@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 import type { Donation, Donor } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
-import { UserPlus, Download, GitMerge } from 'lucide-react';
+import { UserPlus, Download, GitMerge, FileSpreadsheet } from 'lucide-react';
+import ImportExcelModal from './import/ImportExcelModal';
 import DuplicatesModal from './donors/duplicates/DuplicatesModal';
 import { exportDonorsToExcel } from './donors/donorUtils';
 import { getDonorSortOptions, useDonorFilters } from './donors/useDonorFilters';
@@ -53,6 +54,7 @@ export default function DonorsTab({
   // בירור כפילויות + מספר התורמים המיובאים שממתינים לבדיקה
   const canMerge = hasPermission('donors_merge');
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [pendingReview, setPendingReview] = useState(0);
   useEffect(() => {
     if (!canMerge || showDuplicates) return;
@@ -128,6 +130,16 @@ export default function DonorsTab({
                   {pendingReview}
                 </span>
               )}
+            </button>
+          </Protect>
+
+          <Protect permId="donors_create">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition shadow-sm"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              ייבוא מאקסל
             </button>
           </Protect>
 
@@ -209,6 +221,15 @@ export default function DonorsTab({
       />
 
       <NavigationPicker address={navigationAddress} onClose={() => setNavigationAddress(null)} />
+
+      {showImport && (
+        <ImportExcelModal
+          donors={donors}
+          donations={donations}
+          onClose={() => setShowImport(false)}
+          onImported={onRefresh}
+        />
+      )}
 
       {showDuplicates && canMerge && (
         <DuplicatesModal
