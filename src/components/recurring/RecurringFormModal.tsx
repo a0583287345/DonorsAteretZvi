@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Save, Loader2, Trash2, Info } from 'lucide-react';
 import type { Donor } from '@/types/donor';
 import { supabase } from '@/lib/supabase';
@@ -13,7 +13,9 @@ import { donorDisplayName } from '@/lib/import/donorMatch';
 import { todayISO } from '@/lib/reminders/dates';
 import {
   RECURRING_STATUS_LABELS,
+  chargeStatsByRecurring,
   lastChargeDate,
+  type ChargeStats,
   renewalDate,
   type RecurringRow,
   type RecurringStatus,
@@ -62,6 +64,24 @@ export default function RecurringFormModal({ recurring, donors, fixedDonorId, on
       : donors;
     return list.slice(0, 50);
   }, [donors, donorSearch]);
+
+  // הוראה מנדרים: החיוב הראשון ומספר החיובים שנרשמו במערכת
+  const [charges, setCharges] = useState<ChargeStats | null>(null);
+  const kevaId = fromNedarim ? recurring?.external_id ?? null : null;
+  useEffect(() => {
+    if (!kevaId) return;
+    let active = true;
+    void (async () => {
+      const { data } = await supabase
+        .from('donations')
+        .select('recurring_external_id, donation_date, amount')
+        .eq('recurring_external_id', kevaId);
+      if (active) setCharges(chargeStatsByRecurring(data ?? []).get(kevaId) ?? null);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [kevaId]);
 
   // תצוגה מקדימה של מועד הסיום ותזכורת החידוש
   const preview = useMemo(() => {
@@ -278,6 +298,12 @@ export default function RecurringFormModal({ recurring, donors, fixedDonorId, on
           </div>
 
           <div className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3 space-y-0.5">
+            {fromNedarim && (
+              <div>
+                חיוב ראשון: {formatIL(charges?.first ?? null)}
+                {charges ? ` · ${charges.count} חיובים נרשמו במערכת` : ' (עוד לא יובאו חיובים)'}
+              </div>
+            )}
             {preview.last ? (
               <>
                 <div>חיוב אחרון: {formatIL(preview.last)}</div>

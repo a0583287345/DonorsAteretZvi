@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthContext';
 import { Protect } from '@/components/Protect';
 import { todayISO } from '@/lib/reminders/dates';
-import type { RecurringRow } from '@/lib/recurring/schedule';
+import { chargeStatsByRecurring, type ChargeStats, type RecurringRow } from '@/lib/recurring/schedule';
 import RecurringList from './RecurringList';
 import RecurringFormModal from './RecurringFormModal';
 
@@ -17,6 +17,7 @@ export default function DonorRecurringSection({ donor }: { donor: Donor }) {
   const [rows, setRows] = useState<RecurringRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<RecurringRow | 'new' | null>(null);
+  const [chargeStats, setChargeStats] = useState<Map<string, ChargeStats>>(new Map());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -24,7 +25,17 @@ export default function DonorRecurringSection({ donor }: { donor: Donor }) {
       .select('*')
       .eq('donor_id', donor.id)
       .order('created_at', { ascending: false });
-    setRows(data ?? []);
+    const list = data ?? [];
+    // החיובים שנרשמו להוראות מנדרים – לתאריך ההתחלה ולמספר החיובים
+    const kevaIds = list.map((r) => r.external_id).filter((id): id is string => !!id);
+    if (kevaIds.length) {
+      const { data: charges } = await supabase
+        .from('donations')
+        .select('recurring_external_id, donation_date, amount')
+        .in('recurring_external_id', kevaIds);
+      setChargeStats(chargeStatsByRecurring(charges ?? []));
+    }
+    setRows(list);
     setLoaded(true);
   }, [donor.id]);
 
@@ -65,6 +76,7 @@ export default function DonorRecurringSection({ donor }: { donor: Donor }) {
             today={todayISO()}
             canViewAmount={hasPermission('donations_view_amount')}
             hideDonor
+            chargeStats={chargeStats}
             onOpen={(r) => setEditing(r)}
             emptyText="אין הוראות קבע לתורם הזה"
           />

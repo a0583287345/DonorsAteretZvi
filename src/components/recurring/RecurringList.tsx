@@ -6,10 +6,12 @@ import { formatAmount } from '@/components/donations/donationUtils';
 import {
   RECURRING_STATUS_LABELS,
   RECURRING_STATUS_STYLES,
+  firstChargeDate,
   isEndingSoon,
   lastChargeDate,
   nextChargeDate,
   remainingCharges,
+  type ChargeStats,
   type RecurringRow,
   type RecurringStatus,
 } from '@/lib/recurring/schedule';
@@ -21,6 +23,8 @@ type Props = {
   canViewAmount: boolean;
   /** בכרטיס תורם – בלי עמודת תורם */
   hideDonor?: boolean;
+  /** חיוב ראשון ומספר חיובים להוראות מנדרים (לפי מספר ההוראה) */
+  chargeStats?: Map<string, ChargeStats>;
   onOpen?: (r: RecurringRow) => void;
   onOpenDonor?: (donor: Donor) => void;
   emptyText?: string;
@@ -35,6 +39,7 @@ export default function RecurringList({
   today,
   canViewAmount,
   hideDonor,
+  chargeStats,
   onOpen,
   onOpenDonor,
   emptyText = 'אין הוראות קבע',
@@ -50,6 +55,7 @@ export default function RecurringList({
           <tr>
             {!hideDonor && <th className="p-2.5 text-right font-medium">תורם</th>}
             {canViewAmount && <th className="p-2.5 text-right font-medium">לחודש</th>}
+            <th className="p-2.5 text-right font-medium">התחלה</th>
             <th className="p-2.5 text-right font-medium">חיוב הבא</th>
             <th className="p-2.5 text-right font-medium">נותרו</th>
             <th className="p-2.5 text-right font-medium">חיוב אחרון</th>
@@ -61,6 +67,8 @@ export default function RecurringList({
             const donor = r.donor_id ? donorsById?.get(r.donor_id) : undefined;
             const remaining = remainingCharges(r, today);
             const last = lastChargeDate(r);
+            const first = firstChargeDate(r, chargeStats);
+            const charged = r.external_id ? chargeStats?.get(r.external_id)?.count : undefined;
             const soon = isEndingSoon(r, today);
             const status = r.status as RecurringStatus;
             return (
@@ -95,6 +103,10 @@ export default function RecurringList({
                 {canViewAmount && (
                   <td className="p-2.5 font-semibold text-slate-800 whitespace-nowrap">{formatAmount(r.amount, r.currency)}</td>
                 )}
+                <td className="p-2.5 whitespace-nowrap">
+                  {formatIL(first)}
+                  {charged ? <div className="text-[10px] text-slate-400">{charged} חיובים בוצעו</div> : null}
+                </td>
                 <td className="p-2.5 whitespace-nowrap">{formatIL(nextChargeDate(r, today))}</td>
                 <td className="p-2.5 whitespace-nowrap">{remaining === null ? 'ללא הגבלה' : `${remaining} חודשים`}</td>
                 <td className="p-2.5 whitespace-nowrap">

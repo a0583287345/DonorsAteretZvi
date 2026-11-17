@@ -15,6 +15,7 @@ import { reminderState } from '@/lib/reminders/recurrence';
 import { STATUS_STYLES } from '@/components/reminders/reminderUi';
 import {
   addMonthsISO,
+  chargeStatsByRecurring,
   chargesInMonth,
   isEndingSoon,
   monthKey,
@@ -113,6 +114,8 @@ export default function DashboardTab({ donors, donations, onViewDonor, onGoToTab
   }, [load]);
 
   const donorsById = useMemo(() => new Map(donors.map((d) => [d.id, d])), [donors]);
+  // חיוב ראשון ומספר חיובים לכל הוראה מנדרים
+  const chargeStats = useMemo(() => chargeStatsByRecurring(donations), [donations]);
 
   // ---------- סיכומים ----------
   const stats = useMemo(() => {
@@ -374,6 +377,7 @@ export default function DashboardTab({ donors, donations, onViewDonor, onGoToTab
           <RecurringList
             rows={recurringRows}
             donorsById={donorsById}
+            chargeStats={chargeStats}
             today={today}
             canViewAmount={canViewAmount}
             onOpen={(r) => setEditing(r)}
