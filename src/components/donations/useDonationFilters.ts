@@ -19,7 +19,7 @@ export type DonationKind = 'all' | 'recurring' | 'regular';
 /** תרומה שהיא חיוב של הוראת קבע */
 export const isRecurringDonation = (d: Donation) => !!d.recurring_external_id;
 
-export const SOURCE_LABELS: Record<string, string> = { nedarim: 'נדרים פלוס', manual: 'הוזן ידנית' };
+export const SOURCE_LABELS: Record<string, string> = { nedarim: 'נדרים פלוס', manual: 'הוזן ידנית', excel: 'ייבוא מאקסל' };
 
 /** כל הסינונים של לשונית התרומות – נשמרים יחד בדפדפן */
 const DEFAULT_DONATION_FILTERS = {

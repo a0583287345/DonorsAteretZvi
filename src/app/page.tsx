@@ -783,6 +783,7 @@ function DashboardContent() {
               loading={donationsLoading}
               getDonorName={getDonorName}
               onRefresh={fetchDonations}
+              onRefreshAll={fetchData}
               onAddDonation={handleOpenAddDonation}
               onViewDonation={handleOpenDonationCard}
               onViewDonor={handleOpenViewDonor}

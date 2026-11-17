@@ -8,7 +8,8 @@ import RecurringFormModal from '@/components/recurring/RecurringFormModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { toast } from '@/components/Toaster';
-import { PlusCircle, Download, RefreshCw } from 'lucide-react';
+import { PlusCircle, Download, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import ImportExcelModal from './import/ImportExcelModal';
 import SortSelect from '@/components/SortSelect';
 import { downloadCsv, getDonationSortOptions, getPaymentMethodLabel } from './donations/donationUtils';
 import { useDonationDocuments } from './donations/useDonationDocuments';
@@ -24,6 +25,8 @@ interface DonationsTabProps {
   loading: boolean;
   getDonorName: (donorId: string | null) => string;
   onRefresh: () => void;
+  /** רענון תורמים ותרומות (אחרי ייבוא מאקסל – ייתכן שנוצרו תורמים) */
+  onRefreshAll: () => void;
   onAddDonation: (donorId?: string, e?: React.MouseEvent) => void;
   onViewDonation: (donation: Donation, e?: React.MouseEvent) => void;
   onViewDonor: (donor: Donor) => void;
@@ -37,6 +40,7 @@ export default function DonationsTab({
   loading,
   getDonorName,
   onRefresh,
+  onRefreshAll,
   onAddDonation,
   onViewDonation,
   onViewDonor,
@@ -62,6 +66,7 @@ export default function DonationsTab({
 
   // הוראת הקבע שנפתחה מהתגית "הו"ק" בטבלה
   const [openedRecurring, setOpenedRecurring] = useState<RecurringRow | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   async function openRecurring(donation: Donation) {
     if (!donation.recurring_external_id) return;
@@ -157,6 +162,16 @@ export default function DonationsTab({
         </div>
 
         <div className="flex flex-wrap gap-2">
+
+          <Protect permId="donations_create">
+            <button
+              onClick={() => setShowImport(true)}
+              className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-sm"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              ייבוא מאקסל
+            </button>
+          </Protect>
 
           <Protect permId="donations_export">
             <button
@@ -275,6 +290,15 @@ export default function DonationsTab({
         donationDocuments={donationDocuments}
         loadingDonationDocuments={loadingDonationDocuments}
       />
+
+      {showImport && (
+        <ImportExcelModal
+          donors={donors}
+          donations={donations}
+          onClose={() => setShowImport(false)}
+          onImported={onRefreshAll}
+        />
+      )}
 
       {openedRecurring && (
         <RecurringFormModal

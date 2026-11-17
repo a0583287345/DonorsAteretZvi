@@ -44,6 +44,7 @@
 - `src/lib/storage.ts` – `toStorageRef` / `getFileUrl` / `openSecureFile` לקבצים פרטיים
 - `src/lib/reminders/` – מנוע תזכורות: `recurrence.ts` (מופעים/מצב), `hebrew.ts`, `dates.ts`, `actions.ts`, `donorAuto.ts` (תזכורות אוטומטיות + `donor_yahrzeits`)
 - `src/lib/email/` – `templates.ts` (משותף), `server.ts` (**צד שרת בלבד**, Gmail/nodemailer); `src/lib/server-auth.ts` – בדיקת הרשאה ב-API
+- `src/lib/import/excel*.ts` + `src/components/import/ImportExcelModal.tsx` – ייבוא מאקסל (עמודות במקום אחד: `excelColumns.ts`)
 - `src/lib/import/donorMatch.ts` – נרמול טלפון/ת"ז/מייל, התאמת תורם מיובא, מציאת כפילויות (קוד טהור, דפדפן + שרת)
 - `src/lib/nedarim/` – `adapter.ts` (**המקום היחיד** עם שמות השדות וה-API של נדרים פלוס, אומת מול `docs/NedarimPlus-API.md`;
   GetHistoryJson/GetKevaJson מוגבלים ל-20 פניות בשעה; Webhook אחד לעסקאות/הוראות/סירובים + חתימת HMAC),
