@@ -14,6 +14,7 @@ import {
 import type { Donation, Donor } from '@/types/donor';
 import type { PermissionAccess } from '@/lib/permissions';
 import { LockedText } from '@/components/Protect';
+import PhoneLink from '@/components/PhoneLink';
 import { openSecureFile } from '@/lib/storage';
 import {
   formatAmount,
@@ -228,15 +229,8 @@ export default function DonationsTable({
                           </div>
 
                           {canViewContact && donor?.phone_1 && (
-                            <div
-                              dir="ltr"
-                              className="
-                                text-[10px]
-                                text-slate-400
-                                mt-1
-                              "
-                            >
-                              {donor.phone_1}
+                            <div className="mt-1">
+                              <PhoneLink phone={donor.phone_1} className="text-[10px] text-slate-400 hover:text-blue-600" />
                             </div>
                           )}
                         </td>

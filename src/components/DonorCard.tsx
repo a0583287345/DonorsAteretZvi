@@ -8,6 +8,7 @@ import { openSecureFile } from '@/lib/storage';
 import { Donation, Attachment, SpecialDate } from '@/types/donor';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect, LockedText } from '@/components/Protect';
+import PhoneLink from '@/components/PhoneLink';
 import type { Reminder } from '@/types/donor';
 import ReminderCardModal from './reminders/ReminderCardModal';
 import DonorRecurringSection from './recurring/DonorRecurringSection';
@@ -549,13 +550,13 @@ export default function DonorCard({
                 <InfoItem
                   icon={<Phone className="w-3.5 h-3.5" />}
                   label="טלפון 1"
-                  value={donor.phone_1 ? (<a href={`tel:${donor.phone_1}`} dir="ltr" className="hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{donor.phone_1}</a>) : undefined}
+                  value={donor.phone_1 ? (<PhoneLink phone={donor.phone_1} className="hover:text-blue-600" />) : undefined}
                   dir="ltr"
                 />
                 <InfoItem
                   icon={<Phone className="w-3.5 h-3.5" />}
                   label="טלפון 2"
-                  value={donor.phone_2 ? (<a href={`tel:${donor.phone_2}`} dir="ltr" className="hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{donor.phone_2}</a>) : undefined}
+                  value={donor.phone_2 ? (<PhoneLink phone={donor.phone_2} className="hover:text-blue-600" />) : undefined}
                   dir="ltr"
                 />
                 <div className="col-span-2">

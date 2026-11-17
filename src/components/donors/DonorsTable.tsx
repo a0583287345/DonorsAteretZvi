@@ -1,8 +1,9 @@
 'use client';
 
-import { Phone, MapPin, User, Mail } from 'lucide-react';
+import { MapPin, User, Mail } from 'lucide-react';
 import type { Donor } from '@/types/donor';
 import { Protect, LockedText } from '@/components/Protect';
+import PhoneLink from '@/components/PhoneLink';
 import { getFullAddress } from './donorUtils';
 
 type Props = {
@@ -191,47 +192,11 @@ export default function DonorsTable({
                       <td className="px-2.5 py-3 min-w-[115px]">
                         <div className="flex flex-col gap-1">
                           {donor.phone_1 && (
-                            <a
-                              href={`tel:${donor.phone_1}`}
-                              onClick={(e) =>
-                                e.stopPropagation()
-                              }
-                              dir="ltr"
-                              className="
-                                flex
-                                items-center
-                                gap-1
-                                text-blue-600
-                                hover:text-blue-800
-                                hover:underline
-                                whitespace-nowrap
-                              "
-                            >
-                              <Phone className="w-3 h-3" />
-                              {donor.phone_1}
-                            </a>
+                            <PhoneLink phone={donor.phone_1} showIcon className="text-blue-600 hover:text-blue-800" />
                           )}
 
                           {donor.phone_2 && (
-                            <a
-                              href={`tel:${donor.phone_2}`}
-                              onClick={(e) =>
-                                e.stopPropagation()
-                              }
-                              dir="ltr"
-                              className="
-                                flex
-                                items-center
-                                gap-1
-                                text-blue-600
-                                hover:text-blue-800
-                                hover:underline
-                                whitespace-nowrap
-                              "
-                            >
-                              <Phone className="w-3 h-3" />
-                              {donor.phone_2}
-                            </a>
+                            <PhoneLink phone={donor.phone_2} showIcon className="text-blue-600 hover:text-blue-800" />
                           )}
 
                           {!donor.phone_1 &&
