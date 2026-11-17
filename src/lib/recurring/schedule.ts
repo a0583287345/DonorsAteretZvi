@@ -27,6 +27,39 @@ export const RECURRING_STATUS_STYLES: Record<RecurringStatus, string> = {
   ended: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
+/** החיוב הראשון ומספר החיובים שנרשמו בפועל להוראה (מתוך התרומות) */
+export type ChargeStats = { first: string; count: number };
+
+/**
+ * לכל הוראת קבע מנדרים (לפי מספר ההוראה): תאריך החיוב הראשון שנרשם ומספר החיובים.
+ * זיכויים (סכום שלילי) לא נספרים.
+ */
+export function chargeStatsByRecurring(
+  donations: { recurring_external_id?: string | null; donation_date: string | null; amount: number }[]
+): Map<string, ChargeStats> {
+  const map = new Map<string, ChargeStats>();
+  for (const d of donations) {
+    if (!d.recurring_external_id || !d.donation_date || Number(d.amount) <= 0) continue;
+    const date = d.donation_date.slice(0, 10);
+    const s = map.get(d.recurring_external_id);
+    if (!s) map.set(d.recurring_external_id, { first: date, count: 1 });
+    else {
+      s.count += 1;
+      if (date < s.first) s.first = date;
+    }
+  }
+  return map;
+}
+
+/**
+ * תאריך ההתחלה של ההוראה: בהוראה ידנית – החיוב הראשון שהוזן;
+ * בהוראה מנדרים – החיוב הראשון שנרשם במערכת (null אם עוד לא יובאו חיובים).
+ */
+export function firstChargeDate(r: RecurringRow, stats?: Map<string, ChargeStats>): string | null {
+  if (r.start_date) return r.start_date;
+  return (r.external_id && stats?.get(r.external_id)?.first) || null;
+}
+
 /** כמה ימים לפני הסיום הוראה נחשבת "מסתיימת בקרוב" */
 export const ENDING_SOON_DAYS = 60;
 
