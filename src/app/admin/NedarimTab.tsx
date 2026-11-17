@@ -7,6 +7,7 @@ import {
 import { callServerApi } from '@/lib/apiClient';
 import DateInput from '@/components/DateInput';
 import { toast } from '@/components/Toaster';
+import NedarimManualImport from './NedarimManualImport';
 
 const inputClass =
   'w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30';
@@ -440,6 +441,8 @@ export default function NedarimTab() {
           </div>
         </section>
       </div>
+
+      <NedarimManualImport ready={ready} onDone={() => void load()} />
     </div>
   );
 }

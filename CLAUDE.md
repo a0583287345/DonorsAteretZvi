@@ -47,7 +47,8 @@
 - `src/lib/import/donorMatch.ts` – נרמול טלפון/ת"ז/מייל, התאמת תורם מיובא, מציאת כפילויות (קוד טהור, דפדפן + שרת)
 - `src/lib/nedarim/` – `adapter.ts` (**המקום היחיד** עם שמות השדות וה-API של נדרים פלוס, אומת מול `docs/NedarimPlus-API.md`;
   GetHistoryJson/GetKevaJson מוגבלים ל-20 פניות בשעה; Webhook אחד לעסקאות/הוראות/סירובים + חתימת HMAC),
-  `importer.ts` (**צד שרת בלבד**: ייבוא עסקאות/הוראות קבע, תור "לבדיקה", `runNedarimSync`)
+  `importer.ts` (**צד שרת בלבד**: ייבוא עסקאות/הוראות קבע, תור "לבדיקה", `runNedarimSync`),
+  `manualImport.ts` (**צד שרת בלבד**: ייבוא ידני לפי סוג/טווח תאריכים + תצוגה מקדימה)
 - API: `/api/admin/nedarim` (manage_users), `/api/nedarim/callback?key=` (נדרים שולחים עסקאות; מוגן במפתח סודי),
   `/api/import-review` (donors_merge); `src/lib/apiClient.ts` – `callServerApi` מהדפדפן עם הטוקן
 - `src/components/filters/` – `MultiSelectFilter` (הקלדה + בחירה מרובה) ו-`FilterFields` (כן/לא, טווחים, `FiltersShell`);
