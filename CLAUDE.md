@@ -54,6 +54,7 @@
 - `src/components/filters/` – `MultiSelectFilter` (הקלדה + בחירה מרובה) ו-`FilterFields` (כן/לא, טווחים, `FiltersShell`);
   `src/lib/filters.ts` – התאמה/אפשרויות (קוד טהור); מצב הסינון נשמר עם `usePersistentObject`
 - `src/components/donors/duplicates/` – חלון "בירור כפילויות" בלשונית התורמים (מיזוג = `rpc('merge_donors')`)
+- `src/components/PhoneLink.tsx` – מספר טלפון לחיץ (שיחה / וואטסאפ / העתקה). **להשתמש בו בכל מקום שמוצג טלפון**
 - `src/components/DateInput.tsx` – שדה תאריך DD/MM/YYYY. **לא משתמשים ב-`type="date"`**
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`
 - `src/types/donor.ts` – `Donor`, `Donation`, `Attachment`, `SpecialDate`, `Reminder`
