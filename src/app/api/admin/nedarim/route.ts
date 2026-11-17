@@ -11,6 +11,7 @@ import {
   type WebhookType,
 } from '@/lib/nedarim/adapter';
 import { getNedarimConfig, runNedarimSync } from '@/lib/nedarim/importer';
+import { parseManualImportOptions, runManualImport } from '@/lib/nedarim/manualImport';
 
 // =====================================================================
 // הגדרות נדרים פלוס מפאנל הניהול (דורש manage_users):
@@ -23,6 +24,7 @@ import { getNedarimConfig, runNedarimSync } from '@/lib/nedarim/importer';
 //   setup_webhooks – רישום הכתובת שלנו בנדרים לשלושת סוגי העדכונים + הפעלת חתימת HMAC
 //   sync_now       – ייבוא עכשיו
 //   reset_history  – ייבוא ההיסטוריה מההתחלה (עסקאות קיימות לא נכנסות פעמיים)
+//   manual_import  – ייבוא ידני: הוראות קבע / עסקאות בטווח תאריכים ולפי סוג, עם תצוגה מקדימה (dryRun)
 // =====================================================================
 
 export const dynamic = 'force-dynamic';
@@ -190,6 +192,33 @@ export async function POST(request: Request) {
           `ייבוא מנדרים פלוס: ${d.imported + d.new_donor + d.no_donor} תרומות (${d.no_donor} ללא תורם), ${d.new_donor} תורמים חדשים, ${d.review + summary.recurring.review} לבדיקה`
         );
         return NextResponse.json(summary);
+      }
+
+      case 'manual_import': {
+        const opts = parseManualImportOptions(body);
+        if (typeof opts === 'string') return fail(opts);
+        const r = await runManualImport(opts);
+        if (!opts.dryRun && r.result) {
+          const c = r.result;
+          const range =
+            opts.kind === 'recurring'
+              ? opts.recurringScope === 'all' ? 'כל הוראות הקבע' : 'הוראות קבע פעילות'
+              : `עסקאות ${opts.from ? `מ-${opts.from.split('-').reverse().join('/')}` : 'מההתחלה'}${
+                  opts.to ? ` עד ${opts.to.split('-').reverse().join('/')}` : ''
+                }${
+                  opts.types.length && opts.types.length < 3
+                    ? ` (${opts.types.map((t) => ({ regular: 'רגילות', installments: 'תשלומים', keva: 'חיובי הוראות קבע' })[t]).join(', ')})`
+                    : ''
+                }`;
+          await auditFromServer(
+            user,
+            'IMPORT',
+            opts.kind === 'recurring' ? 'recurring_donations' : 'donations',
+            `ייבוא ידני מנדרים פלוס – ${range}${opts.includeIgnored ? ', כולל מסומנים "לא לייבא"' : ''}: ` +
+              `${c.imported + c.new_donor + c.no_donor} חדשים, ${c.new_donor} תורמים חדשים, ${c.updated} עודכנו, ${c.review} לבדיקה, ${c.skipped} קיימים`
+          );
+        }
+        return NextResponse.json(r);
       }
 
       case 'reset_history': {
