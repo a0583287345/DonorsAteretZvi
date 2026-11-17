@@ -50,6 +50,8 @@
   `importer.ts` (**צד שרת בלבד**: ייבוא עסקאות/הוראות קבע, תור "לבדיקה", `runNedarimSync`)
 - API: `/api/admin/nedarim` (manage_users), `/api/nedarim/callback?key=` (נדרים שולחים עסקאות; מוגן במפתח סודי),
   `/api/import-review` (donors_merge); `src/lib/apiClient.ts` – `callServerApi` מהדפדפן עם הטוקן
+- `src/components/filters/` – `MultiSelectFilter` (הקלדה + בחירה מרובה) ו-`FilterFields` (כן/לא, טווחים, `FiltersShell`);
+  `src/lib/filters.ts` – התאמה/אפשרויות (קוד טהור); מצב הסינון נשמר עם `usePersistentObject`
 - `src/components/donors/duplicates/` – חלון "בירור כפילויות" בלשונית התורמים (מיזוג = `rpc('merge_donors')`)
 - `src/components/DateInput.tsx` – שדה תאריך DD/MM/YYYY. **לא משתמשים ב-`type="date"`**
 - `src/lib/logger.ts` – `logActivity(action, table, description)` כותב ל-`audit_logs`

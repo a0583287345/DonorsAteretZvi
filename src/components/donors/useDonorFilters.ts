@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { Donation, Donor } from '@/types/donor';
-import { usePersistentState } from '@/hooks/usePersistentState';
+import { usePersistentObject, usePersistentState } from '@/hooks/usePersistentState';
+import {
+  buildOptions,
+  inDateRange,
+  inNumberRange,
+  matchesTokens,
+  matchesYesNo,
+  type YesNoAll,
+} from '@/lib/filters';
 
 export type DonorSort =
   | 'created_desc'
@@ -30,6 +38,41 @@ export function getDonorSortOptions(canViewContact: boolean): { value: DonorSort
 
 const DONOR_SORTS = getDonorSortOptions(true).map((o) => o.value);
 
+/** כל הסינונים של לשונית התורמים – נשמרים יחד בדפדפן */
+const DEFAULT_DONOR_FILTERS = {
+  search: '',
+  // סינון רגיל
+  country: [] as string[],
+  city: [] as string[],
+  contact: [] as string[],
+  recurring: 'all' as YesNoAll,
+  hasDonations: 'all' as YesNoAll,
+  // סינון מתקדם
+  street: [] as string[],
+  phone: [] as string[],
+  email: [] as string[],
+  zeout: [] as string[],
+  yissachar: 'all' as YesNoAll,
+  notes: '',
+  createdFrom: '',
+  createdTo: '',
+  lastDonationFrom: '',
+  lastDonationTo: '',
+  countMin: '',
+  countMax: '',
+};
+
+export type DonorFilterState = typeof DEFAULT_DONOR_FILTERS;
+
+/** שדות שדורשים הרשאה לפרטי התקשרות – בלעדיה לא מסננים לפיהם ולא מציגים אותם */
+const CONTACT_FIELDS: (keyof DonorFilterState)[] = ['country', 'city', 'street', 'phone', 'email', 'zeout'];
+const ADVANCED_FIELDS: (keyof DonorFilterState)[] = [
+  'street', 'phone', 'email', 'zeout', 'yissachar', 'notes',
+  'createdFrom', 'createdTo', 'lastDonationFrom', 'lastDonationTo', 'countMin', 'countMax',
+];
+
+const isFieldActive = (v: string | string[]) => (Array.isArray(v) ? v.length > 0 : v.trim() !== '' && v !== 'all');
+
 const time = (value: string | null | undefined) => (value ? new Date(value).getTime() : 0);
 const compareHe = (a: string | null | undefined, b: string | null | undefined) => {
   // ריקים תמיד בסוף
@@ -39,54 +82,55 @@ const compareHe = (a: string | null | undefined, b: string | null | undefined) =
   return a.localeCompare(b, 'he');
 };
 
-const uniqueSorted = (values: (string | null)[]) =>
-  Array.from(new Set(values.filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'he'));
-
 const has = (value: string | null | undefined, query: string) =>
   (value || '').toLowerCase().includes(query);
 
+const isoDay = (ms: number) => (ms ? new Date(ms).toISOString().slice(0, 10) : null);
+
 /**
  * כל מצב החיפוש והסינון של רשימת התורמים.
- * בלי הרשאה לראות פרטי התקשרות – לא מחפשים ולא מסננים לפי טלפון, אימייל וכתובת.
+ * בלי הרשאה לראות פרטי התקשרות – לא מחפשים ולא מסננים לפי טלפון, אימייל, ת"ז וכתובת.
  */
 export function useDonorFilters(donors: Donor[], donations: Donation[], canViewContact: boolean) {
   const [sort, setSort] = usePersistentState<DonorSort>('donors.sort', 'created_desc', DONOR_SORTS);
-  const [searchQuery, setSearchQuery] = usePersistentState<string>('donors.searchQuery', '');
-  const [countryFilter, setCountryFilter] = usePersistentState<string>('donors.countryFilter', '');
-  const [cityFilter, setCityFilter] = usePersistentState<string>('donors.cityFilter', '');
-  const [streetFilter, setStreetFilter] = usePersistentState<string>('donors.streetFilter', '');
-  const [contactFilter, setContactFilter] = usePersistentState<string>('donors.contactFilter', '');
-  const [recurringFilter, setRecurringFilter] = usePersistentState<string>('donors.recurringFilter', '', ['', 'yes', 'no'] as const);
-  const [yissacharFilter, setYissacharFilter] = usePersistentState<string>('donors.yissacharFilter', '', ['', 'yes', 'no'] as const);
-  const [emailFilter, setEmailFilter] = usePersistentState<string>('donors.emailFilter', '');
-  const [phoneFilter, setPhoneFilter] = usePersistentState<string>('donors.phoneFilter', '');
-  const [notesFilter, setNotesFilter] = usePersistentState<string>('donors.notesFilter', '');
+  const [filters, setFilter, resetFilters] = usePersistentObject('donors.filters', DEFAULT_DONOR_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
 
-  const countries = useMemo(() => uniqueSorted(donors.map((d) => d.country)), [donors]);
-  const cities = useMemo(() => uniqueSorted(donors.map((d) => d.city)), [donors]);
-  const streets = useMemo(() => uniqueSorted(donors.map((d) => d.street)), [donors]);
-  const contacts = useMemo(() => uniqueSorted(donors.map((d) => d.connected_contact)), [donors]);
+  // מספר תרומות ותאריך התרומה האחרונה לכל תורם (לסינון, למיון ולסיכום)
+  const donationStats = useMemo(() => {
+    const stats = new Map<string, { count: number; last: number }>();
+    for (const d of donations) {
+      if (!d.donor_id) continue;
+      const s = stats.get(d.donor_id) || { count: 0, last: 0 };
+      s.count += 1;
+      s.last = Math.max(s.last, time(d.donation_date));
+      stats.set(d.donor_id, s);
+    }
+    return stats;
+  }, [donations]);
 
-  const resetFilters = () => {
-    setSearchQuery('');
-    setCountryFilter('');
-    setCityFilter('');
-    setStreetFilter('');
-    setContactFilter('');
-    setRecurringFilter('');
-    setYissacharFilter('');
-    setEmailFilter('');
-    setPhoneFilter('');
-    setNotesFilter('');
-  };
+  // האפשרויות לכל תיבת בחירה, עם מספר התורמים לכל ערך
+  const options = useMemo(
+    () => ({
+      country: buildOptions(donors, (d) => [d.country]),
+      city: buildOptions(donors, (d) => [d.city]),
+      street: buildOptions(donors, (d) => [d.street]),
+      contact: buildOptions(donors, (d) => [d.connected_contact]),
+      phone: buildOptions(donors, (d) => [d.phone_1, d.phone_2]),
+      email: buildOptions(donors, (d) => [d.email]),
+      zeout: buildOptions(donors, (d) => [d.zeout]),
+    }),
+    [donors]
+  );
 
   const filteredDonors = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
+    const f = filters;
+    const query = f.search.toLowerCase().trim();
+    const notesQuery = f.notes.toLowerCase().trim();
 
     return donors.filter((donor) => {
       if (query) {
-        const fields: (string | null)[] = [
+        const fields: (string | null | undefined)[] = [
           `${donor.first_name_he || ''} ${donor.last_name_he || ''}`,
           `${donor.first_name_en || ''} ${donor.last_name_en || ''}`,
           donor.connected_contact,
@@ -100,6 +144,7 @@ export function useDonorFilters(donors: Donor[], donations: Donation[], canViewC
             donor.phone_1,
             donor.phone_2,
             donor.email,
+            donor.zeout,
             donor.country,
             donor.city,
             donor.street,
@@ -110,51 +155,29 @@ export function useDonorFilters(donors: Donor[], donations: Donation[], canViewC
       }
 
       if (canViewContact) {
-        if (countryFilter && donor.country !== countryFilter) return false;
-        if (cityFilter && donor.city !== cityFilter) return false;
-        if (streetFilter && donor.street !== streetFilter) return false;
-        if (emailFilter && !has(donor.email, emailFilter.toLowerCase())) return false;
-        if (phoneFilter && !has(`${donor.phone_1 || ''} ${donor.phone_2 || ''}`, phoneFilter.toLowerCase()))
-          return false;
+        if (!matchesTokens(f.country, [donor.country])) return false;
+        if (!matchesTokens(f.city, [donor.city])) return false;
+        if (!matchesTokens(f.street, [donor.street])) return false;
+        if (!matchesTokens(f.phone, [donor.phone_1, donor.phone_2])) return false;
+        if (!matchesTokens(f.email, [donor.email])) return false;
+        if (!matchesTokens(f.zeout, [donor.zeout])) return false;
       }
 
-      if (contactFilter && donor.connected_contact !== contactFilter) return false;
-      if (notesFilter && !has(donor.notes, notesFilter.toLowerCase())) return false;
+      if (!matchesTokens(f.contact, [donor.connected_contact])) return false;
+      if (notesQuery && !has(donor.notes, notesQuery)) return false;
 
-      if (recurringFilter === 'yes' && !donor.is_recurring) return false;
-      if (recurringFilter === 'no' && donor.is_recurring) return false;
-      if (yissacharFilter === 'yes' && !donor.has_yissachar_zevulun) return false;
-      if (yissacharFilter === 'no' && donor.has_yissachar_zevulun) return false;
+      if (!matchesYesNo(f.recurring, !!donor.is_recurring)) return false;
+      if (!matchesYesNo(f.yissachar, !!donor.has_yissachar_zevulun)) return false;
+
+      const stats = donationStats.get(donor.id);
+      if (!matchesYesNo(f.hasDonations, !!stats)) return false;
+      if (!inDateRange(donor.created_at, f.createdFrom, f.createdTo)) return false;
+      if (!inDateRange(isoDay(stats?.last ?? 0), f.lastDonationFrom, f.lastDonationTo)) return false;
+      if (!inNumberRange(stats?.count ?? 0, f.countMin, f.countMax)) return false;
 
       return true;
     });
-  }, [
-    donors,
-    canViewContact,
-    searchQuery,
-    countryFilter,
-    cityFilter,
-    streetFilter,
-    contactFilter,
-    recurringFilter,
-    yissacharFilter,
-    emailFilter,
-    phoneFilter,
-    notesFilter,
-  ]);
-
-  // מספר תרומות ותאריך התרומה האחרונה לכל תורם (למיון ולסיכום)
-  const donationStats = useMemo(() => {
-    const stats = new Map<string, { count: number; last: number }>();
-    for (const d of donations) {
-      if (!d.donor_id) continue;
-      const s = stats.get(d.donor_id) || { count: 0, last: 0 };
-      s.count += 1;
-      s.last = Math.max(s.last, time(d.donation_date));
-      stats.set(d.donor_id, s);
-    }
-    return stats;
-  }, [donations]);
+  }, [donors, donationStats, canViewContact, filters]);
 
   const sortedDonors = useMemo(() => {
     const effective = !canViewContact && sort === 'city_asc' ? 'created_desc' : sort;
@@ -197,18 +220,11 @@ export function useDonorFilters(donors: Donor[], donations: Donation[], canViewC
 
   // סינון שנשמר מהפעם הקודמת – חשוב לסמן שהוא פעיל.
   // סינוני פרטי התקשרות נחשבים רק כשיש הרשאה (בלעדיה הם לא מופעלים)
-  const hasActiveFilters =
-    searchQuery !== '' ||
-    contactFilter !== '' ||
-    recurringFilter !== '' ||
-    yissacharFilter !== '' ||
-    notesFilter !== '' ||
-    (canViewContact &&
-      (countryFilter !== '' ||
-        cityFilter !== '' ||
-        streetFilter !== '' ||
-        emailFilter !== '' ||
-        phoneFilter !== ''));
+  const counts = (fields: (keyof DonorFilterState)[]) =>
+    fields.filter((k) => (canViewContact || !CONTACT_FIELDS.includes(k)) && isFieldActive(filters[k])).length;
+  const allFields = Object.keys(DEFAULT_DONOR_FILTERS) as (keyof DonorFilterState)[];
+  const hasActiveFilters = counts(allFields) > 0;
+  const advancedActiveCount = counts(ADVANCED_FIELDS);
 
   const filteredRecurringCount = useMemo(
     () => filteredDonors.filter((d) => d.is_recurring).length,
@@ -221,24 +237,16 @@ export function useDonorFilters(donors: Donor[], donations: Donation[], canViewC
   );
 
   return {
-    searchQuery, setSearchQuery,
-    countryFilter, setCountryFilter,
-    cityFilter, setCityFilter,
-    streetFilter, setStreetFilter,
-    contactFilter, setContactFilter,
-    recurringFilter, setRecurringFilter,
-    yissacharFilter, setYissacharFilter,
-    emailFilter, setEmailFilter,
-    phoneFilter, setPhoneFilter,
-    notesFilter, setNotesFilter,
-    showFilters, setShowFilters,
-    countries,
-    cities,
-    streets,
-    contacts,
+    filters,
+    setFilter,
+    options,
+    showFilters,
+    setShowFilters,
     resetFilters,
     hasActiveFilters,
-    sort, setSort,
+    advancedActiveCount,
+    sort,
+    setSort,
     /** התוצאות אחרי סינון ומיון */
     filteredDonors: sortedDonors,
     filteredDonorsWithDonations,

@@ -40,7 +40,8 @@ export default function RecurringFormModal({ recurring, donors, fixedDonorId, on
   const isNew = !recurring;
   const fromNedarim = recurring?.external_source === 'nedarim';
   const canSave = hasPermission(isNew ? 'donations_create' : 'donations_edit');
-  const canDelete = !isNew && !fromNedarim && hasPermission('donations_delete');
+  // גם הוראה מנדרים פלוס אפשר למחוק מהמערכת (היא לא תיובא שוב – ראו טריגר במסד)
+  const canDelete = !isNew && hasPermission('donations_delete');
 
   const [donorId, setDonorId] = useState(recurring?.donor_id ?? fixedDonorId ?? '');
   const [donorSearch, setDonorSearch] = useState('');
@@ -127,7 +128,13 @@ export default function RecurringFormModal({ recurring, donors, fixedDonorId, on
 
   const remove = async () => {
     if (!recurring || !canDelete) return;
-    if (!window.confirm('למחוק את הוראת הקבע? (התרומות שכבר נרשמו לא יימחקו)')) return;
+    const message = fromNedarim
+      ? 'למחוק את הוראת הקבע מהמערכת?\n\n' +
+        '• ההוראה נמחקת רק כאן – בנדרים פלוס היא ממשיכה לפעול כרגיל.\n' +
+        '• היא לא תיובא שוב בסנכרון הבא.\n' +
+        '• התרומות (החיובים) שכבר נרשמו לא יימחקו, והתזכורות של ההוראה יימחקו.'
+      : 'למחוק את הוראת הקבע? (התרומות שכבר נרשמו לא יימחקו)';
+    if (!window.confirm(message)) return;
     setBusy(true);
     const { error } = await supabase.from('recurring_donations').delete().eq('id', recurring.id);
     setBusy(false);
@@ -135,7 +142,8 @@ export default function RecurringFormModal({ recurring, donors, fixedDonorId, on
     await logActivity(
       'delete',
       'recurring_donations',
-      `נמחקה הוראת קבע של ${selectedDonor ? donorDisplayName(selectedDonor) : ''}: ${recurring.amount} ${recurring.currency}`
+      `נמחקה הוראת קבע של ${selectedDonor ? donorDisplayName(selectedDonor) : ''}: ${recurring.amount} ${recurring.currency}` +
+        (fromNedarim ? ` (נדרים פלוס ${recurring.external_id} – לא תיובא שוב)` : '')
     );
     toast.success('הוראת הקבע נמחקה');
     onSaved();
