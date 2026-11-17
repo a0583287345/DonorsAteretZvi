@@ -1,15 +1,60 @@
 import { useMemo, useState } from 'react';
 import type { Donation, Donor } from '@/types/donor';
-import { usePersistentState } from '@/hooks/usePersistentState';
+import { usePersistentObject, usePersistentState } from '@/hooks/usePersistentState';
 import {
-  getDonationSortOptions,
-  getPaymentMethodLabel,
-  type DonationSort,
+  buildOptions,
+  inDateRange,
+  inNumberRange,
+  matchesTokens,
+  matchesYesNo,
   type YesNoAll,
-} from './donationUtils';
+} from '@/lib/filters';
+import { getDonationSortOptions, getPaymentMethodLabel, type DonationSort } from './donationUtils';
 
-const YES_NO_ALL: readonly YesNoAll[] = ['all', 'yes', 'no'];
 const DONATION_SORTS = getDonationSortOptions(true).map((o) => o.value);
+
+/** הוראת קבע / רגילה – המתג שמעל הסינון */
+export type DonationKind = 'all' | 'recurring' | 'regular';
+
+/** תרומה שהיא חיוב של הוראת קבע */
+export const isRecurringDonation = (d: Donation) => !!d.recurring_external_id;
+
+export const SOURCE_LABELS: Record<string, string> = { nedarim: 'נדרים פלוס', manual: 'הוזן ידנית' };
+
+/** כל הסינונים של לשונית התרומות – נשמרים יחד בדפדפן */
+const DEFAULT_DONATION_FILTERS = {
+  search: '',
+  kind: 'all' as DonationKind,
+  // סינון רגיל
+  donor: [] as string[],
+  dateFrom: '',
+  dateTo: '',
+  method: [] as string[],
+  currency: [] as string[],
+  // סינון מתקדם
+  amountMin: '',
+  amountMax: '',
+  source: [] as string[],
+  category: [] as string[],
+  city: [] as string[],
+  country: [] as string[],
+  createdFrom: '',
+  createdTo: '',
+  hasReceipt: 'all' as YesNoAll,
+  hasFile: 'all' as YesNoAll,
+  hasNotes: 'all' as YesNoAll,
+};
+
+export type DonationFilterState = typeof DEFAULT_DONATION_FILTERS;
+
+const AMOUNT_FIELDS: (keyof DonationFilterState)[] = ['amountMin', 'amountMax'];
+const CONTACT_FIELDS: (keyof DonationFilterState)[] = ['city', 'country'];
+const ADVANCED_FIELDS: (keyof DonationFilterState)[] = [
+  'amountMin', 'amountMax', 'source', 'category', 'city', 'country',
+  'createdFrom', 'createdTo', 'hasReceipt', 'hasFile', 'hasNotes',
+];
+
+const isFieldActive = (v: string | string[]) => (Array.isArray(v) ? v.length > 0 : v.trim() !== '' && v !== 'all');
 
 type Options = {
   donations: Donation[];
@@ -18,11 +63,12 @@ type Options = {
   donationHasDocuments: (donation: Donation) => boolean;
   /** בלי הרשאה לראות סכומים – לא מחפשים, מסננים או ממיינים לפי סכום */
   canViewAmount: boolean;
-  /** בלי הרשאה לראות פרטי התקשרות – לא מחפשים לפי טלפון */
+  /** בלי הרשאה לראות פרטי התקשרות – לא מחפשים לפי טלפון ולא מסננים לפי עיר/מדינה */
   canViewContact: boolean;
 };
 
 const time = (value: string | null) => new Date(value || 0).getTime();
+const sourceOf = (d: Donation) => d.external_source || 'manual';
 
 /** כל מצב הסינון והמיון של רשימת התרומות, והתוצאות המחושבות */
 export function useDonationFilters({
@@ -33,45 +79,39 @@ export function useDonationFilters({
   canViewAmount,
   canViewContact,
 }: Options) {
-  const [donationSearch, setDonationSearch] = usePersistentState<string>('donations.donationSearch', '');
-  const [donationCurrency, setDonationCurrency] = usePersistentState<string>('donations.donationCurrency', 'all');
-  const [donationPaymentMethod, setDonationPaymentMethod] = usePersistentState<string>('donations.donationPaymentMethod', 'all');
-  const [donationDonorId, setDonationDonorId] = usePersistentState<string>('donations.donationDonorId', 'all');
-  const [donationMinAmount, setDonationMinAmount] = usePersistentState<string>('donations.donationMinAmount', '');
-  const [donationMaxAmount, setDonationMaxAmount] = usePersistentState<string>('donations.donationMaxAmount', '');
-  const [donationDateFrom, setDonationDateFrom] = usePersistentState<string>('donations.donationDateFrom', '');
-  const [donationDateTo, setDonationDateTo] = usePersistentState<string>('donations.donationDateTo', '');
-  const [donationHasReceipt, setDonationHasReceipt] = usePersistentState<YesNoAll>('donations.donationHasReceipt', 'all', YES_NO_ALL);
-  const [donationHasFile, setDonationHasFile] = usePersistentState<YesNoAll>('donations.donationHasFile', 'all', YES_NO_ALL);
-  const [donationHasNotes, setDonationHasNotes] = usePersistentState<YesNoAll>('donations.donationHasNotes', 'all', YES_NO_ALL);
+  const [filters, setFilter, clearAll] = usePersistentObject('donations.filters', DEFAULT_DONATION_FILTERS);
   // ברירת מחדל: לפי תאריך יצירת הרשומה, חדש → ישן
   const [donationSort, setDonationSort] = usePersistentState<DonationSort>('donations.sort', 'created_desc', DONATION_SORTS);
-  const [showAdvancedDonationFilters, setShowAdvancedDonationFilters] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const donationCurrencies = useMemo(
-    () => Array.from(new Set(donations.map((d) => d.currency || 'ILS'))).sort(),
-    [donations]
+  // האפשרויות לכל תיבת בחירה, עם מספר התרומות לכל ערך
+  const options = useMemo(
+    () => ({
+      donor: buildOptions(donations, (d) => [d.donor_id], (id) => getDonorName(id)),
+      method: buildOptions(donations, (d) => [d.payment_method], (m) => getPaymentMethodLabel(m)),
+      currency: buildOptions(donations, (d) => [d.currency || 'ILS']),
+      source: buildOptions(donations, (d) => [sourceOf(d)], (s) => SOURCE_LABELS[s] ?? s),
+      category: buildOptions(donations, (d) => [d.category]),
+      city: buildOptions(donations, (d) => [d.donor_id ? donorMap.get(d.donor_id)?.city : null]),
+      country: buildOptions(donations, (d) => [d.donor_id ? donorMap.get(d.donor_id)?.country : null]),
+    }),
+    [donations, donorMap, getDonorName]
   );
 
-  const donationPaymentMethods = useMemo(
-    () =>
-      Array.from(
-        new Set(donations.map((d) => d.payment_method).filter(Boolean) as string[])
-      ).sort(),
-    [donations]
-  );
+  // כמה תרומות מכל סוג (למתג הוראות קבע)
+  const kindCounts = useMemo(() => {
+    const recurring = donations.filter(isRecurringDonation).length;
+    return { all: donations.length, recurring, regular: donations.length - recurring };
+  }, [donations]);
 
   const filteredDonations = useMemo(() => {
-    const query = donationSearch.trim().toLowerCase();
-    const minAmount = canViewAmount && donationMinAmount !== '' ? Number(donationMinAmount) : null;
-    const maxAmount = canViewAmount && donationMaxAmount !== '' ? Number(donationMaxAmount) : null;
-
-    const matchesYesNo = (filter: YesNoAll, value: boolean) =>
-      filter === 'all' || (filter === 'yes') === value;
+    const f = filters;
+    const query = f.search.trim().toLowerCase();
 
     const result = donations.filter((donation) => {
+      const donor = donation.donor_id ? donorMap.get(donation.donor_id) : undefined;
+
       if (query) {
-        const donor = donation.donor_id ? donorMap.get(donation.donor_id) : null;
         const fields = [
           getDonorName(donation.donor_id),
           canViewContact ? `${donor?.phone_1 || ''} ${donor?.phone_2 || ''}` : '',
@@ -80,25 +120,33 @@ export function useDonationFilters({
           donation.payment_method || '',
           getPaymentMethodLabel(donation.payment_method),
           donation.currency || 'ILS',
+          donation.category || '',
+          donation.external_id || '',
           canViewAmount ? String(donation.amount) : '',
         ];
         if (!fields.some((field) => field.toLowerCase().includes(query))) return false;
       }
 
-      if (donationCurrency !== 'all' && (donation.currency || 'ILS') !== donationCurrency) return false;
-      if (donationPaymentMethod !== 'all' && (donation.payment_method || '') !== donationPaymentMethod) return false;
-      if (donationDonorId !== 'all' && donation.donor_id !== donationDonorId) return false;
+      if (f.kind === 'recurring' && !isRecurringDonation(donation)) return false;
+      if (f.kind === 'regular' && isRecurringDonation(donation)) return false;
 
-      if (minAmount !== null && Number.isFinite(minAmount) && Number(donation.amount) < minAmount) return false;
-      if (maxAmount !== null && Number.isFinite(maxAmount) && Number(donation.amount) > maxAmount) return false;
+      if (!matchesTokens(f.donor, [donation.donor_id])) return false;
+      if (!matchesTokens(f.method, [donation.payment_method])) return false;
+      if (!matchesTokens(f.currency, [donation.currency || 'ILS'])) return false;
+      if (!matchesTokens(f.source, [sourceOf(donation)])) return false;
+      if (!matchesTokens(f.category, [donation.category])) return false;
+      if (canViewContact) {
+        if (!matchesTokens(f.city, [donor?.city])) return false;
+        if (!matchesTokens(f.country, [donor?.country])) return false;
+      }
 
-      const donationDate = donation.donation_date?.slice(0, 10);
-      if (donationDateFrom && (!donationDate || donationDate < donationDateFrom)) return false;
-      if (donationDateTo && (!donationDate || donationDate > donationDateTo)) return false;
+      if (canViewAmount && !inNumberRange(Number(donation.amount), f.amountMin, f.amountMax)) return false;
+      if (!inDateRange(donation.donation_date, f.dateFrom, f.dateTo)) return false;
+      if (!inDateRange(donation.created_at, f.createdFrom, f.createdTo)) return false;
 
-      if (!matchesYesNo(donationHasReceipt, !!donation.receipt_number?.trim())) return false;
-      if (!matchesYesNo(donationHasFile, donationHasDocuments(donation))) return false;
-      if (!matchesYesNo(donationHasNotes, !!donation.notes?.trim())) return false;
+      if (!matchesYesNo(f.hasReceipt, !!donation.receipt_number?.trim())) return false;
+      if (!matchesYesNo(f.hasFile, donationHasDocuments(donation))) return false;
+      if (!matchesYesNo(f.hasNotes, !!donation.notes?.trim())) return false;
 
       return true;
     });
@@ -138,17 +186,7 @@ export function useDonationFilters({
     donationHasDocuments,
     canViewAmount,
     canViewContact,
-    donationSearch,
-    donationCurrency,
-    donationPaymentMethod,
-    donationDonorId,
-    donationMinAmount,
-    donationMaxAmount,
-    donationDateFrom,
-    donationDateTo,
-    donationHasReceipt,
-    donationHasFile,
-    donationHasNotes,
+    filters,
     donationSort,
   ]);
 
@@ -167,53 +205,30 @@ export function useDonationFilters({
     [filteredDonations]
   );
 
-  function clearDonationFilters() {
-    setDonationSearch('');
-    setDonationCurrency('all');
-    setDonationPaymentMethod('all');
-    setDonationDonorId('all');
-    setDonationMinAmount('');
-    setDonationMaxAmount('');
-    setDonationDateFrom('');
-    setDonationDateTo('');
-    setDonationHasReceipt('all');
-    setDonationHasFile('all');
-    setDonationHasNotes('all');
-  }
+  // שדות בלי הרשאה לא נחשבים (הם גם לא מופעלים בסינון)
+  const allowedField = (k: keyof DonationFilterState) =>
+    (canViewAmount || !AMOUNT_FIELDS.includes(k)) && (canViewContact || !CONTACT_FIELDS.includes(k));
+  const countActive = (fields: (keyof DonationFilterState)[]) =>
+    fields.filter((k) => allowedField(k) && isFieldActive(filters[k])).length;
 
-  const hasActiveDonationFilters =
-    donationSearch !== '' ||
-    donationCurrency !== 'all' ||
-    donationPaymentMethod !== 'all' ||
-    donationDonorId !== 'all' ||
-    (canViewAmount && (donationMinAmount !== '' || donationMaxAmount !== '')) ||
-    donationDateFrom !== '' ||
-    donationDateTo !== '' ||
-    donationHasReceipt !== 'all' ||
-    donationHasFile !== 'all' ||
-    donationHasNotes !== 'all';
+  const hasActiveDonationFilters = countActive(Object.keys(DEFAULT_DONATION_FILTERS) as (keyof DonationFilterState)[]) > 0;
+  const advancedActiveCount = countActive(ADVANCED_FIELDS);
 
   return {
-    donationSearch, setDonationSearch,
-    donationCurrency, setDonationCurrency,
-    donationPaymentMethod, setDonationPaymentMethod,
-    donationDonorId, setDonationDonorId,
-    donationMinAmount, setDonationMinAmount,
-    donationMaxAmount, setDonationMaxAmount,
-    donationDateFrom, setDonationDateFrom,
-    donationDateTo, setDonationDateTo,
-    donationHasReceipt, setDonationHasReceipt,
-    donationHasFile, setDonationHasFile,
-    donationHasNotes, setDonationHasNotes,
-    donationSort, setDonationSort,
-    showAdvancedDonationFilters, setShowAdvancedDonationFilters,
-    donationCurrencies,
-    donationPaymentMethods,
+    filters,
+    setFilter,
+    options,
+    kindCounts,
+    showAdvanced,
+    setShowAdvanced,
+    advancedActiveCount,
+    donationSort,
+    setDonationSort,
     filteredDonations,
     filteredDonationTotals,
     filteredDonationDonorCount,
     hasActiveDonationFilters,
-    clearDonationFilters,
+    clearDonationFilters: clearAll,
   };
 }
 

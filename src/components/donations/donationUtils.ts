@@ -40,8 +40,6 @@ export function getDonationSortOptions(canViewAmount: boolean): { value: Donatio
   ];
 }
 
-export type YesNoAll = 'all' | 'yes' | 'no';
-
 // הערכים במסד הנתונים נשארים באנגלית
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit_card: 'כרטיס אשראי',

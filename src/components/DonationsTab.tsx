@@ -1,6 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import type { Donation, Donor } from '@/types/donor';
+import { supabase } from '@/lib/supabase';
+import type { RecurringRow } from '@/lib/recurring/schedule';
+import RecurringFormModal from '@/components/recurring/RecurringFormModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Protect } from '@/components/Protect';
 import { toast } from '@/components/Toaster';
@@ -56,6 +60,28 @@ export default function DonationsTab({
   });
   const { filteredDonations } = filters;
 
+  // הוראת הקבע שנפתחה מהתגית "הו"ק" בטבלה
+  const [openedRecurring, setOpenedRecurring] = useState<RecurringRow | null>(null);
+
+  async function openRecurring(donation: Donation) {
+    if (!donation.recurring_external_id) return;
+    const { data, error } = await supabase
+      .from('recurring_donations')
+      .select('*')
+      .eq('external_source', donation.external_source || 'nedarim')
+      .eq('external_id', donation.recurring_external_id)
+      .maybeSingle();
+    if (error) {
+      toast.error(`טעינת הוראת הקבע נכשלה: ${error.message}`);
+      return;
+    }
+    if (!data) {
+      toast.info('הוראת הקבע של החיוב הזה לא קיימת במערכת (אולי נמחקה או עוד לא יובאה).');
+      return;
+    }
+    setOpenedRecurring(data);
+  }
+
   function exportFilteredDonations() {
     if (filteredDonations.length === 0) {
       toast.info('אין תרומות לייצוא לפי הסינון הנוכחי.');
@@ -72,6 +98,7 @@ export default function DonationsTab({
       { header: 'סכום', value: (d) => d.amount, show: canViewAmount },
       { header: 'מטבע', value: (d) => d.currency || 'ILS', show: true },
       { header: 'אמצעי תשלום', value: (d) => getPaymentMethodLabel(d.payment_method), show: true },
+      { header: 'הוראת קבע', value: (d) => (d.recurring_external_id ? `כן (${d.recurring_external_id})` : ''), show: true },
       { header: 'תאריך תרומה', value: (d) => d.donation_date || '', show: true },
       { header: 'תאריך יצירה', value: (d) => d.created_at || '', show: true },
       { header: 'מספר קבלה', value: (d) => d.receipt_number || '', show: true },
@@ -215,12 +242,7 @@ export default function DonationsTab({
       </div>
 
 
-      <DonationsFiltersPanel
-        filters={filters}
-        donors={donors}
-        getDonorName={getDonorName}
-        canViewAmount={canViewAmount}
-      />
+      <DonationsFiltersPanel filters={filters} canViewAmount={canViewAmount} canViewContact={canViewContact} />
 
       <DonationsSummary
         filteredCount={filteredDonations.length}
@@ -246,12 +268,23 @@ export default function DonationsTab({
         getDonorName={getDonorName}
         onViewDonation={onViewDonation}
         onViewDonor={onViewDonor}
+        onOpenRecurring={openRecurring}
         amountAccess={amountAccess}
         canViewAmount={canViewAmount}
         canViewContact={canViewContact}
         donationDocuments={donationDocuments}
         loadingDonationDocuments={loadingDonationDocuments}
       />
+
+      {openedRecurring && (
+        <RecurringFormModal
+          key={openedRecurring.id}
+          recurring={openedRecurring}
+          donors={donors}
+          onClose={() => setOpenedRecurring(null)}
+          onSaved={() => setOpenedRecurring(null)}
+        />
+      )}
     </div>
   );
 }

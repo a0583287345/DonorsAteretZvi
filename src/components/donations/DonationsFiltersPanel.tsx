@@ -1,577 +1,173 @@
 'use client';
 
-import { Search, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
-import DateInput from '@/components/DateInput';
-import type { Donor } from '@/types/donor';
-import { getPaymentMethodLabel } from './donationUtils';
-import type { DonationFilters } from './useDonationFilters';
+import { Repeat } from 'lucide-react';
+import MultiSelectFilter from '@/components/filters/MultiSelectFilter';
+import {
+  DateRangeFilter,
+  FiltersShell,
+  NumberRangeFilter,
+  YesNoFilter,
+} from '@/components/filters/FilterFields';
+import type { DonationFilters, DonationKind } from './useDonationFilters';
 
 type Props = {
   filters: DonationFilters;
-  donors: Donor[];
-  getDonorName: (donorId: string | null) => string;
   /** בלי הרשאה לראות סכומים – לא מציגים סינון לפי סכום */
   canViewAmount: boolean;
+  /** בלי הרשאה לראות פרטי התקשרות – לא מציגים סינון לפי עיר/מדינה */
+  canViewContact: boolean;
 };
 
-/** חיפוש, פילטרים מהירים וסינון מתקדם של רשימת התרומות */
-export default function DonationsFiltersPanel({ filters, donors, getDonorName, canViewAmount }: Props) {
+/**
+ * חיפוש וסינון של רשימת התרומות.
+ * למעלה: מתג הוראות קבע. רגיל: תורם, תאריך, אמצעי תשלום, מטבע. מתקדם: כל השאר.
+ */
+export default function DonationsFiltersPanel({ filters, canViewAmount, canViewContact }: Props) {
   const {
-    donationSearch,
-    setDonationSearch,
-    donationCurrency,
-    setDonationCurrency,
-    donationPaymentMethod,
-    setDonationPaymentMethod,
-    donationDonorId,
-    setDonationDonorId,
-    donationMinAmount,
-    setDonationMinAmount,
-    donationMaxAmount,
-    setDonationMaxAmount,
-    donationDateFrom,
-    setDonationDateFrom,
-    donationDateTo,
-    setDonationDateTo,
-    donationHasReceipt,
-    setDonationHasReceipt,
-    donationHasFile,
-    setDonationHasFile,
-    donationHasNotes,
-    setDonationHasNotes,
-    showAdvancedDonationFilters,
-    setShowAdvancedDonationFilters,
-    donationCurrencies,
-    donationPaymentMethods,
+    filters: f,
+    setFilter,
+    options,
+    kindCounts,
+    showAdvanced,
+    setShowAdvanced,
+    advancedActiveCount,
     hasActiveDonationFilters,
     clearDonationFilters,
   } = filters;
 
+  const kinds: { id: DonationKind; label: string; count: number }[] = [
+    { id: 'all', label: 'כל התרומות', count: kindCounts.all },
+    { id: 'recurring', label: 'הוראות קבע', count: kindCounts.recurring },
+    { id: 'regular', label: 'תרומות רגילות', count: kindCounts.regular },
+  ];
+
   return (
-    <>
-      {/* ======================================================
-          סינון
-      ====================================================== */}
-
-      <div
-        className={`bg-slate-50 rounded-2xl border p-4 space-y-3 ${
-          hasActiveDonationFilters ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
-        }`}
-      >
-        <div
-          className="
-            flex
-            flex-col
-            lg:flex-row
-            gap-3
-          "
-        >
-          <div className="relative flex-1">
-
-            <Search
-              className="
-                absolute
-                right-3
-                top-1/2
-                -translate-y-1/2
-                w-4
-                h-4
-                text-slate-400
-              "
+    <FiltersShell
+      search={f.search}
+      onSearch={(v) => setFilter('search', v)}
+      searchPlaceholder="חפש לפי שם תורם, טלפון, סכום, קבלה, אמצעי תשלום, הערות..."
+      showAdvanced={showAdvanced}
+      onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
+      advancedActiveCount={advancedActiveCount}
+      hasActive={hasActiveDonationFilters}
+      onReset={clearDonationFilters}
+      top={
+        <div className="flex flex-wrap gap-1.5">
+          {kinds.map((k) => {
+            const selected = f.kind === k.id;
+            const recurring = k.id === 'recurring';
+            return (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() => setFilter('kind', k.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition ${
+                  selected
+                    ? recurring
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                      : 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : recurring
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {recurring && <Repeat className="w-3.5 h-3.5" />}
+                {k.label}
+                <span className={`text-[10px] font-bold ${selected ? 'text-white/80' : 'text-slate-400'}`}>{k.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      }
+      basic={
+        <>
+          <MultiSelectFilter
+            label="תורם"
+            options={options.donor}
+            selected={f.donor}
+            onChange={(v) => setFilter('donor', v)}
+            placeholder="כל התורמים"
+          />
+          <DateRangeFilter
+            label="תאריך תרומה"
+            from={f.dateFrom}
+            to={f.dateTo}
+            onFrom={(v) => setFilter('dateFrom', v)}
+            onTo={(v) => setFilter('dateTo', v)}
+          />
+          <MultiSelectFilter
+            label="אמצעי תשלום"
+            options={options.method}
+            selected={f.method}
+            onChange={(v) => setFilter('method', v)}
+            placeholder="כל אמצעי התשלום"
+          />
+          <MultiSelectFilter
+            label="מטבע"
+            options={options.currency}
+            selected={f.currency}
+            onChange={(v) => setFilter('currency', v)}
+            placeholder="כל המטבעות"
+          />
+        </>
+      }
+      advanced={
+        <>
+          {canViewAmount && (
+            <NumberRangeFilter
+              label="סכום"
+              min={f.amountMin}
+              max={f.amountMax}
+              onMin={(v) => setFilter('amountMin', v)}
+              onMax={(v) => setFilter('amountMax', v)}
             />
-
-            <input
-              type="text"
-              value={donationSearch}
-              onChange={(e) =>
-                setDonationSearch(
-                  e.target.value
-                )
-              }
-              placeholder="חפש לפי שם תורם, טלפון, סכום, קבלה, אמצעי תשלום, הערות..."
-              className="
-                w-full
-                pr-9
-                pl-4
-                py-2.5
-                bg-white
-                border
-                border-slate-200
-                rounded-xl
-                text-sm
-                focus:outline-none
-                focus:ring-2
-                focus:ring-blue-500/20
-                focus:border-blue-500
-              "
-            />
-          </div>
-
-          <button
-            onClick={() =>
-              setShowAdvancedDonationFilters(
-                !showAdvancedDonationFilters
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              text-slate-700
-              rounded-xl
-              px-4
-              py-2.5
-              text-xs
-              font-medium
-              flex
-              items-center
-              justify-center
-              gap-2
-            "
-          >
-            <Filter className="w-4 h-4" />
-
-            סינון מתקדם
-
-            {showAdvancedDonationFilters ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </button>
-
-          {hasActiveDonationFilters && (
-            <button
-              onClick={clearDonationFilters}
-              className="
-                bg-white
-                border
-                border-red-200
-                text-red-600
-                rounded-xl
-                px-4
-                py-2.5
-                text-xs
-                font-medium
-                flex
-                items-center
-                justify-center
-                gap-2
-              "
-            >
-              <X className="w-4 h-4" />
-              נקה סינון
-            </button>
           )}
-        </div>
-
-        {/* פילטרים מהירים */}
-
-        <div
-          className="
-            grid
-            grid-cols-2
-            md:grid-cols-3
-            lg:grid-cols-5
-            gap-2
-          "
-        >
-          <select
-            value={donationCurrency}
-            onChange={(e) =>
-              setDonationCurrency(
-                e.target.value
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="all">
-              כל המטבעות
-            </option>
-
-            {donationCurrencies.map(
-              (currency) => (
-                <option
-                  key={currency}
-                  value={currency}
-                >
-                  {currency}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={donationPaymentMethod}
-            onChange={(e) =>
-              setDonationPaymentMethod(
-                e.target.value
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="all">
-              כל אמצעי התשלום
-            </option>
-
-            {donationPaymentMethods.map(
-              (method) => (
-                <option
-                  key={method}
-                  value={method}
-                >
-                  {getPaymentMethodLabel(method)}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={donationDonorId}
-            onChange={(e) =>
-              setDonationDonorId(
-                e.target.value
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="all">
-              כל התורמים
-            </option>
-
-            {donors
-              .slice()
-              .sort((a, b) =>
-                getDonorName(
-                  a.id
-                ).localeCompare(
-                  getDonorName(
-                    b.id
-                  ),
-                  'he'
-                )
-              )
-              .map((donor) => (
-                <option
-                  key={donor.id}
-                  value={donor.id}
-                >
-                  {getDonorName(
-                    donor.id
-                  )}
-                </option>
-              ))}
-          </select>
-
-          <select
-            value={donationHasReceipt}
-            onChange={(e) =>
-              setDonationHasReceipt(
-                e.target.value as
-                  | 'all'
-                  | 'yes'
-                  | 'no'
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="all">
-              כל הקבלות
-            </option>
-
-            <option value="yes">
-              יש מספר קבלה
-            </option>
-
-            <option value="no">
-              אין מספר קבלה
-            </option>
-          </select>
-
-          <select
-            value={donationHasFile}
-            onChange={(e) =>
-              setDonationHasFile(
-                e.target.value as
-                  | 'all'
-                  | 'yes'
-                  | 'no'
-              )
-            }
-            className="
-              bg-white
-              border
-              border-slate-200
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              text-slate-700
-            "
-          >
-            <option value="all">
-              כל הקבצים
-            </option>
-
-            <option value="yes">
-              יש קובץ
-            </option>
-
-            <option value="no">
-              אין קובץ
-            </option>
-          </select>
-        </div>
-
-        {/* סינון מתקדם */}
-
-        {showAdvancedDonationFilters && (
-          <div
-            className="
-              border-t
-              border-slate-200
-              pt-3
-              grid
-              grid-cols-1
-              md:grid-cols-2
-              lg:grid-cols-4
-              gap-3
-            "
-          >
-            {canViewAmount && (<>
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                סכום מינימום
-              </label>
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={donationMinAmount}
-                onChange={(e) =>
-                  setDonationMinAmount(
-                    e.target.value
-                  )
-                }
-                placeholder="ללא הגבלה"
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
+          <MultiSelectFilter
+            label="מקור"
+            options={options.source}
+            selected={f.source}
+            onChange={(v) => setFilter('source', v)}
+            placeholder="ידני + נדרים פלוס"
+          />
+          {options.category.length > 0 && (
+            <MultiSelectFilter
+              label="קטגוריה"
+              options={options.category}
+              selected={f.category}
+              onChange={(v) => setFilter('category', v)}
+              placeholder="כל הקטגוריות"
+            />
+          )}
+          {canViewContact && (
+            <>
+              <MultiSelectFilter
+                label="עיר התורם"
+                options={options.city}
+                selected={f.city}
+                onChange={(v) => setFilter('city', v)}
+                placeholder="כל הערים"
               />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                סכום מקסימום
-              </label>
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={donationMaxAmount}
-                onChange={(e) =>
-                  setDonationMaxAmount(
-                    e.target.value
-                  )
-                }
-                placeholder="ללא הגבלה"
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
+              <MultiSelectFilter
+                label="מדינת התורם"
+                options={options.country}
+                selected={f.country}
+                onChange={(v) => setFilter('country', v)}
+                placeholder="כל המדינות"
               />
-            </div>
-            </>)}
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                מתאריך
-              </label>
-
-              <DateInput value={donationDateFrom} onChange={setDonationDateFrom} />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                עד תאריך
-              </label>
-
-              <DateInput value={donationDateTo} onChange={setDonationDateTo} />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                הערות
-              </label>
-
-              <select
-                value={donationHasNotes}
-                onChange={(e) =>
-                  setDonationHasNotes(
-                    e.target.value as
-                      | 'all'
-                      | 'yes'
-                      | 'no'
-                  )
-                }
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
-              >
-                <option value="all">
-                  עם ובלי הערות
-                </option>
-
-                <option value="yes">
-                  יש הערות
-                </option>
-
-                <option value="no">
-                  אין הערות
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                קובץ מצורף
-              </label>
-
-              <select
-                value={donationHasFile}
-                onChange={(e) =>
-                  setDonationHasFile(
-                    e.target.value as
-                      | 'all'
-                      | 'yes'
-                      | 'no'
-                  )
-                }
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
-              >
-                <option value="all">
-                  עם ובלי קובץ
-                </option>
-
-                <option value="yes">
-                  יש קובץ
-                </option>
-
-                <option value="no">
-                  אין קובץ
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-500 mb-1">
-                מספר קבלה
-              </label>
-
-              <select
-                value={donationHasReceipt}
-                onChange={(e) =>
-                  setDonationHasReceipt(
-                    e.target.value as
-                      | 'all'
-                      | 'yes'
-                      | 'no'
-                  )
-                }
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-slate-200
-                  rounded-xl
-                  px-3
-                  py-2
-                  text-xs
-                "
-              >
-                <option value="all">
-                  עם ובלי קבלה
-                </option>
-
-                <option value="yes">
-                  יש מספר קבלה
-                </option>
-
-                <option value="no">
-                  אין מספר קבלה
-                </option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
+            </>
+          )}
+          <DateRangeFilter
+            label="נוספה למערכת"
+            from={f.createdFrom}
+            to={f.createdTo}
+            onFrom={(v) => setFilter('createdFrom', v)}
+            onTo={(v) => setFilter('createdTo', v)}
+          />
+          <YesNoFilter label="מספר קבלה" value={f.hasReceipt} onChange={(v) => setFilter('hasReceipt', v)} yesLabel="יש" noLabel="אין" />
+          <YesNoFilter label="קובץ מצורף" value={f.hasFile} onChange={(v) => setFilter('hasFile', v)} yesLabel="יש" noLabel="אין" />
+          <YesNoFilter label="הערות" value={f.hasNotes} onChange={(v) => setFilter('hasNotes', v)} yesLabel="יש" noLabel="אין" />
+        </>
+      }
+    />
   );
 }

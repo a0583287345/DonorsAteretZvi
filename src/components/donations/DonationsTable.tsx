@@ -9,6 +9,7 @@ import {
   Paperclip,
   StickyNote,
   ExternalLink,
+  Repeat,
 } from 'lucide-react';
 import type { Donation, Donor } from '@/types/donor';
 import type { PermissionAccess } from '@/lib/permissions';
@@ -28,6 +29,8 @@ type Props = {
   getDonorName: (donorId: string | null) => string;
   onViewDonation: (donation: Donation, e?: React.MouseEvent) => void;
   onViewDonor: (donor: Donor) => void;
+  /** לחיצה על התגית "הו"ק" – פתיחת הוראת הקבע של החיוב */
+  onOpenRecurring?: (donation: Donation) => void;
   amountAccess: PermissionAccess;
   canViewAmount: boolean;
   canViewContact: boolean;
@@ -43,6 +46,7 @@ export default function DonationsTable({
   getDonorName,
   onViewDonation,
   onViewDonor,
+  onOpenRecurring,
   amountAccess,
   canViewAmount,
   canViewContact,
@@ -289,6 +293,20 @@ export default function DonationsTable({
                             >
                               נדרים פלוס
                             </span>
+                          )}
+                          {donation.recurring_external_id && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenRecurring?.(donation);
+                              }}
+                              className="inline-flex items-center gap-1 mt-1 mr-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100"
+                              title={`חיוב של הוראת קבע מספר ${donation.recurring_external_id} – לחצו לפרטי ההוראה`}
+                            >
+                              <Repeat className="w-3 h-3" />
+                              הו&quot;ק
+                            </button>
                           )}
                         </td>
 
